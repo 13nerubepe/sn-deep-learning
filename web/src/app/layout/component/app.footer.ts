@@ -4,8 +4,8 @@ import { Component } from '@angular/core';
     standalone: true,
     selector: 'app-footer',
     template: `<div class="layout-footer">
-        <span class="font-bold text-primary">MEFA</span>
-        <span class="text-muted-color">· Suivi et analyse des marchés financiers · © {{ annee }}</span>
+        <span class="font-bold text-primary">DermaPharm AI</span>
+        <span class="text-muted-color">· Intelligence artificielle pour la dermatologie et la pharma · © {{ annee }}</span>
     </div>`
 })
 export class AppFooter {

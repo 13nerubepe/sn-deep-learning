@@ -23,53 +23,30 @@ import { Notifications } from '@/app/pages/commons/notifications/notifications';
                     viewBox="0 0 54 40"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
-                    aria-label="Logo MEFA"
+                    aria-label="Logo DermaPharm AI"
                     role="img"
                 >
                     <defs>
-                        <linearGradient
-                            id="mefa-orange"
-                            x1="5"
-                            y1="0"
-                            x2="48"
-                            y2="40"
-                            gradientUnits="userSpaceOnUse"
-                        >
+                        <linearGradient id="dp-orange" x1="4" y1="2" x2="50" y2="38" gradientUnits="userSpaceOnUse">
                             <stop offset="0%" stop-color="#FFB52E" />
                             <stop offset="50%" stop-color="#FF7900" />
                             <stop offset="100%" stop-color="#E94B00" />
                         </linearGradient>
                     </defs>
 
-                    <!-- M stylisé -->
-                    <path
-                        d="M5 32V11C5 6 11 4 14 8L27 20L40 8C43 4 49 6 49 11V28L42 24V14L30 25C28 27 26 27 24 25L12 14V32H5Z"
-                        fill="url(#mefa-orange)"
-                    />
+                    <!-- Goutte : la peau (module 1, dermatologie) -->
+                    <path d="M18 2C18 2 5 16.5 5 25A13 13 0 0 0 31 25C31 16.5 18 2 18 2Z" fill="url(#dp-orange)" />
 
-                    <!-- Barres financières -->
-                    <path
-                        d="M15 32V26H19V32H15Z
-               M22 32V22H27V32H22Z
-               M30 32V17H35V32H30Z"
-                        fill="url(#mefa-orange)"
-                    />
+                    <!-- Croix : la pharmacie (Merck) -->
+                    <path d="M15.5 17.5H20.5V22.5H25.5V27.5H20.5V32.5H15.5V27.5H10.5V22.5H15.5Z" fill="#ffffff" />
 
-                    <!-- Courbe de croissance -->
-                    <path
-                        d="M4 34C17 40 32 33 44 19"
-                        stroke="url(#mefa-orange)"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                    />
-
-                    <!-- Flèche ascendante -->
-                    <path
-                        d="M39 17L49 13L47 24L44 21L41 24Z"
-                        fill="#FF9A00"
-                    />
+                    <!-- Courbe à nœuds : réseau de neurones et prévision du cours (module 2) -->
+                    <path d="M31 33L38 25L44 28L50 13" stroke="url(#dp-orange)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                    <circle cx="38" cy="25" r="2.6" fill="#FF9A00" />
+                    <circle cx="44" cy="28" r="2.6" fill="#FF9A00" />
+                    <circle cx="50" cy="13" r="3.2" fill="#E94B00" />
                 </svg>
-                <span>MEFA</span>
+                <span>DermaPharm <span class="text-primary">AI</span></span>
             </a>
         </div>
 
