@@ -1,0 +1,110 @@
+<div class="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+
+    <!-- En-tête -->
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+            <h2 class="!m-0 !text-sm !font-semibold !leading-tight text-slate-800 dark:text-white">Évolution du marché</h2>
+            <p class="mb-0 mt-0.5 text-xs text-slate-500 dark:text-slate-400">Cours de l'actif sur la période</p>
+        </div>
+
+        <p-select
+            [options]="assets"
+            [(ngModel)]="selectedAsset"
+            optionLabel="nom"
+            dataKey="id"
+            placeholder="Rechercher un actif"
+            [filter]="true"
+            filterBy="nom,symbole"
+            [loading]="loadingAssets"
+            (onChange)="loadChart()"
+            size="small"
+            styleClass="w-full sm:w-64"
+            appendTo="body">
+
+            <ng-template #selectedItem let-asset>
+                @if (asset) {
+                    <span class="text-sm">{{ asset.nom }} <span class="text-slate-500">({{ asset.symbole }})</span></span>
+                }
+            </ng-template>
+
+            <ng-template #item let-asset>
+                <div class="flex flex-col">
+                    <span class="text-sm">{{ asset.nom }}</span>
+                    <small class="text-slate-500">{{ asset.symbole }}</small>
+                </div>
+            </ng-template>
+        </p-select>
+    </div>
+
+    <!-- Résumé et périodes -->
+    <div class="flex flex-wrap items-end justify-between gap-3 px-4 pt-3">
+        <dl class="m-0 flex flex-wrap gap-x-6 gap-y-2">
+            <div>
+                <dt class="text-[11px] text-slate-500 dark:text-slate-400">Dernier cours</dt>
+                <dd class="m-0 text-base font-bold tabular-nums text-slate-900 dark:text-white">
+                    {{ dernierCours === null ? '—' : formatNombre(dernierCours) }}
+                    @if (dernierCours !== null && selectedAsset?.devise) {
+                        <small class="text-[11px] font-normal text-slate-500">{{ selectedAsset?.devise }}</small>
+                    }
+                </dd>
+            </div>
+            <div>
+                <dt class="text-[11px] text-slate-500 dark:text-slate-400">Performance</dt>
+                <dd class="m-0 text-base font-bold tabular-nums"
+                    [class.text-emerald-600]="(performance ?? 0) > 0"
+                    [class.text-red-500]="(performance ?? 0) < 0">
+                    {{ performance === null ? '—' : (performance > 0 ? '+' : '') + formatNombre(performance) + ' %' }}
+                </dd>
+            </div>
+            <div>
+                <dt class="text-[11px] text-slate-500 dark:text-slate-400">Volatilité</dt>
+                <dd class="m-0 text-base font-bold tabular-nums text-slate-900 dark:text-white">
+                    {{ volatilite === null ? '—' : formatNombre(volatilite) + ' %' }}
+                </dd>
+            </div>
+        </dl>
+
+        <div class="flex gap-0.5" role="group" aria-label="Période">
+            @for (periode of periods; track periode.value) {
+                <button
+                    type="button"
+                    class="cursor-pointer rounded-md border-0 px-2 py-1 text-xs font-medium transition-colors"
+                    [class]="selectedPeriod === periode.value
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                        : 'bg-transparent text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'"
+                    [attr.aria-pressed]="selectedPeriod === periode.value"
+                    (click)="changerPeriode(periode.value)">
+                    {{ periode.label }}
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Courbe -->
+    <div class="relative m-3 min-h-[220px] min-w-0 flex-1">
+        @if (loadingChart) {
+            <div class="absolute inset-0 flex items-center justify-center gap-2 text-xs text-slate-500">
+                <i class="pi pi-spin pi-spinner"></i>
+                Chargement du graphique...
+            </div>
+        } @else if (errorMessage) {
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
+                <p class="m-0 max-w-sm text-xs text-slate-500 dark:text-slate-400">{{ errorMessage }}</p>
+                <button
+                    type="button"
+                    (click)="selectedAsset ? loadChart() : loadAssets()"
+                    class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                    Réessayer
+                </button>
+            </div>
+        } @else if (chartData.datasets.length > 0) {
+            <div class="absolute inset-0">
+                <p-chart type="line" [data]="chartData" [options]="chartOptions" height="100%" width="100%" />
+            </div>
+        } @else {
+            <div class="absolute inset-0 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                Aucun cours disponible sur cette période.
+            </div>
+        }
+    </div>
+</div>

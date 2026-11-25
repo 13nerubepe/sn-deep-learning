@@ -1,0 +1,376 @@
+import { Component, computed, inject, Input, OnChanges, OnInit, signal, SimpleChanges } from '@angular/core';
+import { NgClass, NgTemplateOutlet } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ButtonDirective } from 'primeng/button';
+import { InputText } from 'primeng/inputtext';
+import { Paginator, PaginatorState } from 'primeng/paginator';
+import { Skeleton } from 'primeng/skeleton';
+import { catchError, forkJoin, of } from 'rxjs';
+
+import { ActifService } from '@/app/pages/service/service/actif-service';
+import { Actif, Actualite } from '@/app/models/actif-model';
+
+export type CategorieId = 'action' | 'indice' | 'crypto' | 'general';
+
+interface Categorie {
+    id: CategorieId;
+    libelle: string;
+    description: string;
+    icone: string;
+    couleur: string;
+}
+
+interface ActifIndexe {
+    actif: Actif;
+    nomCourt: string;
+    motifs: RegExp[];
+}
+
+export interface ArticleClasse extends Actualite {
+    actifs: Actif[];
+    categories: CategorieId[];
+    resume: string;
+}
+
+export interface NoeudActif {
+    cle: string;
+    actif: Actif | null;
+    articles: ArticleClasse[];
+}
+
+export interface NoeudJour {
+    cle: string;
+    titre: string;
+    sousTitre: string;
+    nombreArticles: number;
+    actifs: NoeudActif[];
+}
+
+const CATEGORIES: Categorie[] = [
+    { id: 'action', libelle: 'Actions', description: 'Entreprises cotées', icone: 'pi-briefcase', couleur: '#2962ff' },
+    { id: 'indice', libelle: 'Indices', description: 'S&P 500, CAC 40…', icone: 'pi-chart-bar', couleur: '#00897b' },
+    { id: 'crypto', libelle: 'Cryptomonnaies', description: 'Bitcoin, Ethereum…', icone: 'pi-bitcoin', couleur: '#ef6c00' },
+    { id: 'general', libelle: 'Marchés & économie', description: 'Macro, taux, conjoncture', icone: 'pi-globe', couleur: '#7b1fa2' }
+];
+
+const PREFIXE_YAHOO = 'Yahoo Finance - ';
+const SUFFIXES_NOM = /[\s,]+(inc\.?|corp\.?|corporation|co\.?|company|ltd\.?|limited|plc|s\.?a\.?|usd)$/i;
+const ARTICLES_COMPACT = 5;
+const JOUR_INCONNU = 'inconnu';
+const JOURS_PAR_PAGE = 7;
+
+function nomCourt(nom: string): string {
+    let resultat = nom.trim();
+    let nettoye = resultat.replace(SUFFIXES_NOM, '').trim();
+    while (nettoye !== resultat) {
+        resultat = nettoye;
+        nettoye = resultat.replace(SUFFIXES_NOM, '').trim();
+    }
+    return resultat;
+}
+
+function echapper(texte: string): string {
+    return texte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function motMotif(mot: string, drapeaux: string): RegExp {
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${echapper(mot)}($|[^\\p{L}\\p{N}])`, drapeaux);
+}
+
+@Component({
+    selector: 'app-actualites',
+    standalone: true,
+    imports: [NgClass, NgTemplateOutlet, FormsModule, ButtonDirective, InputText, Skeleton, Paginator],
+    templateUrl: './actualites.html',
+    styleUrl: './actualites.scss'
+})
+export class ActualitesComponent implements OnInit, OnChanges {
+    private readonly actifService = inject(ActifService);
+
+    @Input() symbole?: string;
+    @Input() compact = false;
+
+    readonly categories = CATEGORIES;
+
+    readonly articles = signal<ArticleClasse[]>([]);
+    readonly loading = signal(false);
+    readonly errorMessage = signal('');
+    readonly onglet = signal<CategorieId>('action');
+    readonly recherche = signal('');
+    readonly premier = signal(0);
+    readonly lignes = signal(JOURS_PAR_PAGE);
+
+    /** Choix faits à la main dans l'arbre ; ils priment sur le mode général. */
+    private readonly noeudsBascules = signal<Map<string, boolean>>(new Map());
+    /** auto : seul le jour le plus récent est ouvert (tous pendant une recherche). */
+    readonly modeArbre = signal<'auto' | 'ouvert' | 'ferme'>('auto');
+
+    readonly articlesRecherches = computed(() => {
+        const terme = this.recherche().trim().toLowerCase();
+        if (!terme) return this.articles();
+        return this.articles().filter((article) =>
+            `${article.titre} ${article.resume} ${article.source_nom} ${article.actifs.map((a) => `${a.symbole} ${a.nom}`).join(' ')}`.toLowerCase().includes(terme)
+        );
+    });
+
+    readonly compteurs = computed(() => {
+        const compteurs: Record<CategorieId, number> = { action: 0, indice: 0, crypto: 0, general: 0 };
+        for (const article of this.articlesRecherches()) {
+            for (const categorie of article.categories) compteurs[categorie]++;
+        }
+        return compteurs;
+    });
+
+    readonly categorieActive = computed(() => this.categorie(this.onglet()));
+
+    readonly autresCategories = computed(() => CATEGORIES.filter((c) => c.id !== this.onglet() && this.compteurs()[c.id] > 0));
+
+    readonly articlesOnglet = computed(() => {
+        const onglet = this.onglet();
+        return this.articlesRecherches().filter((article) => article.categories.includes(onglet));
+    });
+
+    readonly principale = computed(() => (this.compact || this.premier() > 0 ? null : (this.articlesOnglet()[0] ?? null)));
+
+    readonly totalListe = computed(() => Math.max(this.articlesOnglet().length - (this.compact ? 0 : 1), 0));
+
+    readonly articlesCompact = computed(() => this.articlesOnglet().slice(0, ARTICLES_COMPACT));
+
+    /** Arbre Jour → Actif → Articles. L'article « À la une » n'y est pas répété. */
+    readonly arbre = computed<NoeudJour[]>(() => {
+        const onglet = this.onglet();
+        const jours = new Map<string, { date: string | null; articles: Set<number | string>; actifs: Map<string, NoeudActif> }>();
+
+        for (const article of this.articlesOnglet().slice(1)) {
+            const cleJour = this.cleJour(article.date_publication);
+            const jour = jours.get(cleJour) ?? { date: article.date_publication, articles: new Set<number | string>(), actifs: new Map<string, NoeudActif>() };
+            jours.set(cleJour, jour);
+            jour.articles.add(article.id);
+
+            const actifs = onglet === 'general' ? article.actifs : article.actifs.filter((a) => a.type_actif === onglet);
+            for (const actif of actifs.length ? actifs : [null]) {
+                const symbole = actif?.symbole ?? '';
+                const noeud = jour.actifs.get(symbole) ?? { cle: `${cleJour}|${symbole}`, actif, articles: [] };
+                noeud.articles.push(article);
+                jour.actifs.set(symbole, noeud);
+            }
+        }
+
+        return [...jours.entries()]
+            .sort(([a], [b]) => (a === JOUR_INCONNU ? 1 : b === JOUR_INCONNU ? -1 : b.localeCompare(a)))
+            .map(([cle, jour]) => ({
+                cle,
+                ...this.libellesJour(jour.date),
+                nombreArticles: jour.articles.size,
+                actifs: [...jour.actifs.values()].sort((a, b) => Number(!a.actif) - Number(!b.actif) || b.articles.length - a.articles.length || (a.actif?.symbole ?? '').localeCompare(b.actif?.symbole ?? ''))
+            }));
+    });
+
+    readonly joursPage = computed(() => this.arbre().slice(this.premier(), this.premier() + this.lignes()));
+
+    ngOnInit(): void {
+        this.chargerActualites();
+    }
+
+    ngOnChanges(changes: SimpleChanges): void {
+        if (changes['symbole'] && !changes['symbole'].firstChange) {
+            this.chargerActualites();
+        }
+    }
+
+    chargerActualites(): void {
+        this.loading.set(true);
+        this.errorMessage.set('');
+        this.premier.set(0);
+
+        forkJoin({
+            articles: this.actifService.getActualites(this.symbole),
+            actifs: this.actifService.getAssets().pipe(catchError(() => of([] as Actif[])))
+        }).subscribe({
+            next: ({ articles, actifs }) => {
+                const liste: Actualite[] = Array.isArray(articles) ? articles : ((articles as { results?: Actualite[] })?.results ?? []);
+                const index = this.indexer(actifs ?? []);
+                this.articles.set(liste.map((article) => this.classer(article, index)));
+                this.choisirOngletDisponible();
+                this.loading.set(false);
+            },
+            error: (erreur) => {
+                console.error('Erreur lors du chargement des actualités :', erreur);
+                this.articles.set([]);
+                this.errorMessage.set('Vérifie ta connexion au serveur, puis réessaie.');
+                this.loading.set(false);
+            }
+        });
+    }
+
+    private indexer(actifs: Actif[]): ActifIndexe[] {
+        return actifs.map((actif) => {
+            const court = nomCourt(actif.nom);
+            const base = actif.symbole.replace(/^\^/, '').split('-')[0];
+            const motifs: RegExp[] = [];
+            if (court.length >= 3) motifs.push(motMotif(court, 'iu'));
+            if (base.length >= 3) motifs.push(motMotif(base, 'u'));
+            return { actif, nomCourt: court, motifs };
+        });
+    }
+
+    private classer(article: Actualite, index: ActifIndexe[]): ArticleClasse {
+        const source = article.source_nom ?? '';
+        const cible = source.startsWith(PREFIXE_YAHOO) ? source.slice(PREFIXE_YAHOO.length).trim().toLowerCase() : null;
+        const titre = article.titre ?? '';
+
+        const actifs = index
+            .filter(({ actif, nomCourt, motifs }) => actif.symbole.toLowerCase() === cible || nomCourt.toLowerCase() === cible || motifs.some((motif) => motif.test(titre)))
+            .map(({ actif }) => actif);
+
+        const categories = new Set<CategorieId>(actifs.map((actif) => actif.type_actif));
+        if (article.themes?.includes('Cryptomonnaies')) categories.add('crypto');
+        if (!categories.size) categories.add('general');
+
+        return {
+            ...article,
+            actifs,
+            categories: CATEGORIES.map((c) => c.id).filter((id) => categories.has(id)),
+            resume: this.texteSimple(article.contenu)
+        };
+    }
+
+    private choisirOngletDisponible(): void {
+        if (this.compteurs()[this.onglet()] > 0) return;
+        const premiere = CATEGORIES.find((c) => this.compteurs()[c.id] > 0);
+        if (premiere) this.onglet.set(premiere.id);
+    }
+
+    choisirOnglet(onglet: CategorieId): void {
+        this.onglet.set(onglet);
+        this.premier.set(0);
+        this.modeArbre.set('auto');
+        this.noeudsBascules.set(new Map());
+    }
+
+    rechercher(texte: string): void {
+        this.recherche.set(texte);
+        this.premier.set(0);
+    }
+
+    reinitialiserFiltres(): void {
+        this.recherche.set('');
+        this.premier.set(0);
+        this.choisirOngletDisponible();
+    }
+
+    changerPage(evenement: PaginatorState, conteneur: HTMLElement): void {
+        this.premier.set(evenement.first ?? 0);
+        this.lignes.set(evenement.rows ?? this.lignes());
+        conteneur.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    jourOuvert(jour: NoeudJour): boolean {
+        const choix = this.noeudsBascules().get(jour.cle);
+        if (choix !== undefined) return choix;
+        if (this.modeArbre() !== 'auto') return this.modeArbre() === 'ouvert';
+        return !!this.recherche().trim() || jour.cle === this.arbre()[0]?.cle;
+    }
+
+    actifOuvert(noeud: NoeudActif): boolean {
+        return this.noeudsBascules().get(noeud.cle) ?? true;
+    }
+
+    basculerJour(jour: NoeudJour): void {
+        this.definirNoeud(jour.cle, !this.jourOuvert(jour));
+    }
+
+    basculerActif(noeud: NoeudActif): void {
+        this.definirNoeud(noeud.cle, !this.actifOuvert(noeud));
+    }
+
+    basculerTout(): void {
+        this.modeArbre.set(this.modeArbre() === 'ouvert' ? 'ferme' : 'ouvert');
+        this.noeudsBascules.set(new Map());
+    }
+
+    private definirNoeud(cle: string, ouvert: boolean): void {
+        const noeuds = new Map(this.noeudsBascules());
+        noeuds.set(cle, ouvert);
+        this.noeudsBascules.set(noeuds);
+    }
+
+    libelleNoeud(noeud: NoeudActif): string {
+        if (noeud.actif) return this.libelleActif(noeud.actif);
+        return this.onglet() === 'general' ? 'Marchés & économie' : 'Autres articles';
+    }
+
+    categorieNoeud(noeud: NoeudActif): Categorie {
+        return this.categorie(noeud.actif?.type_actif ?? this.onglet());
+    }
+
+    categorie(id: CategorieId): Categorie {
+        return CATEGORIES.find((c) => c.id === id)!;
+    }
+
+    categoriePrincipale(article: ArticleClasse): Categorie {
+        const onglet = this.onglet();
+        return this.categorie(article.categories.includes(onglet) ? onglet : article.categories[0]);
+    }
+
+    actifsAffiches(article: ArticleClasse): Actif[] {
+        const onglet = this.onglet();
+        const actifs = onglet === 'general' ? article.actifs : article.actifs.filter((a) => a.type_actif === onglet);
+        return actifs.slice(0, 3);
+    }
+
+    libelleActif(actif: Actif): string {
+        return actif.type_actif === 'indice' ? nomCourt(actif.nom) : actif.symbole.replace(/-USD$/, '');
+    }
+
+    sourceCourte(article: ArticleClasse): string {
+        return (article.source_nom || 'Source inconnue').split(' - ')[0];
+    }
+
+    teinte(couleur: string): string {
+        return `${couleur}1f`;
+    }
+
+    private cleJour(date: string | null): string {
+        if (!date) return JOUR_INCONNU;
+        const jour = new Date(date);
+        if (Number.isNaN(jour.getTime())) return JOUR_INCONNU;
+        return `${jour.getFullYear()}-${String(jour.getMonth() + 1).padStart(2, '0')}-${String(jour.getDate()).padStart(2, '0')}`;
+    }
+
+    private libellesJour(date: string | null): { titre: string; sousTitre: string } {
+        if (this.cleJour(date) === JOUR_INCONNU) return { titre: 'Date inconnue', sousTitre: '' };
+
+        const jour = new Date(date as string);
+        const aujourdhui = new Date();
+        const hier = new Date();
+        hier.setDate(hier.getDate() - 1);
+
+        const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long' };
+        if (jour.getFullYear() !== aujourdhui.getFullYear()) options.year = 'numeric';
+        const texte = jour.toLocaleDateString('fr-FR', options);
+        const majuscule = texte.charAt(0).toUpperCase() + texte.slice(1);
+
+        if (jour.toDateString() === aujourdhui.toDateString()) return { titre: "Aujourd'hui", sousTitre: majuscule };
+        if (jour.toDateString() === hier.toDateString()) return { titre: 'Hier', sousTitre: majuscule };
+        return { titre: majuscule, sousTitre: '' };
+    }
+
+    private texteSimple(contenu: string | null | undefined): string {
+        if (!contenu) return '';
+        const document = new DOMParser().parseFromString(contenu, 'text/html');
+        return (document.body.textContent ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    tempsEcoule(date: string | null): string {
+        if (!date) return '';
+
+        const minutes = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
+        if (minutes < 60) return `Il y a ${Math.max(minutes, 1)} min`;
+        const heures = Math.floor(minutes / 60);
+        if (heures < 24) return `Il y a ${heures} h`;
+        const jours = Math.floor(heures / 24);
+        if (jours < 7) return `Il y a ${jours} j`;
+        return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    }
+}
