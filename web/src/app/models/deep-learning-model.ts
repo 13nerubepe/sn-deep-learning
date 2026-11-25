@@ -48,6 +48,33 @@ export interface ResultatClassification {
     prediction: ProbabiliteClasse;
     probabilites: ProbabiliteClasse[];
     architecture: string;
+    incertitude?: number;                                         // entropie normalisée : 0 = sûr, 1 = hasard
+    avis?: 'confiant' | 'hesitant' | 'tres_incertain';
+    gradcam?: string | null;                                      // image PNG (base64) avec la carte de chaleur
+}
+
+// Image de test exportée par le notebook
+export interface ExempleImage {
+    classe: string;
+    fichier: string;
+    url: string;                                                  // chemin relatif à l'API ML
+}
+
+// Graphique exporté par le notebook
+export interface GraphiqueNotebook {
+    fichier: string;
+    url: string;
+    titre: string;
+    description: string;
+}
+
+// Une prédiction gardée dans l'historique de la visite
+export interface EntreeHistorique {
+    miniature: string;                                            // petite image (data URL)
+    nom: string;
+    classe: string;
+    probabilite: number;
+    heure: Date;
 }
 
 // ---------- Module 2 : prévision du cours de Merck ----------
@@ -61,6 +88,21 @@ export interface PointPrevision extends PointPrix {
     jour: number;
 }
 
+// Backtest : prévision des 20 derniers jours connus comparée aux vrais prix
+export interface ErreursPrevision {
+    mae: number;
+    rmse: number;
+    mape: number;
+}
+
+export interface Backtest {
+    debut: string;
+    fin: string;
+    points: { date: string; reel: number; prevu: number }[];
+    neuralprophet: ErreursPrevision;
+    naif: ErreursPrevision;                                       // référence : le dernier prix répété
+}
+
 export interface PrevisionAction {
     action: string;
     source: string;
@@ -69,4 +111,5 @@ export interface PrevisionAction {
     derniere_date: string;
     historique: PointPrix[];
     previsions: PointPrevision[];
+    backtest?: Backtest | null;
 }

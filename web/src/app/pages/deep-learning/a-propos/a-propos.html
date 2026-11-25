@@ -1,0 +1,130 @@
+<div class="flex flex-col gap-6">
+
+    <!-- Présentation -->
+    <div class="card !mb-0 overflow-hidden">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex flex-col gap-3">
+                <span class="w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">Projet Deep Learning · M2 Data Science</span>
+                <h1 class="!m-0 !text-3xl !font-semibold">DermaPharm <span class="text-primary">AI</span></h1>
+                <p class="!m-0 max-w-2xl text-muted-color">
+                    Une application web qui réunit deux modèles de deep learning autour de la santé :
+                    reconnaître une maladie de peau sur une photo, et prévoir le cours de bourse du laboratoire pharmaceutique Merck.
+                </p>
+                <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                    <span><span class="text-muted-color">Réalisé par :&nbsp;</span><strong>NGONO BEPE Marguerite Claudelle</strong></span>
+                    <span><span class="text-muted-color">Année :&nbsp;</span>2026</span>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a pButton [routerLink]="['/', routes.Classification_PATH]" icon="pi pi-image" label="Tester la classification"></a>
+                <a pButton [routerLink]="['/', routes.Prevision_PATH]" icon="pi pi-chart-line" label="Voir la prévision" severity="secondary" [outlined]="true"></a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Les deux modules -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <a [routerLink]="['/', routes.Classification_PATH]" class="card !mb-0 flex flex-col gap-3 transition hover:shadow-md">
+            <div class="flex items-center gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><i class="pi pi-image text-lg"></i></div>
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-muted-color">Module 1</span>
+                    <h2 class="!m-0 !text-lg !font-semibold">Classification d'images de maladies de peau</h2>
+                </div>
+            </div>
+            <p class="!m-0 text-sm text-muted-color">
+                Réseau de neurones convolutif (CNN) entraîné sur les 5 dernières classes du « 20 Skin Diseases Dataset » (Kaggle) :
+                Tinea, Urticaria, Vascular Tumors, Vasculitis et Warts.
+            </p>
+            @if (info(); as i) {
+                <div class="flex flex-wrap gap-2 text-xs">
+                    <span class="rounded-full bg-surface-100 px-3 py-1 dark:bg-surface-800">Modèle retenu : <strong>{{ nomModele(i.architecture) }}</strong></span>
+                    @if (i.score_test !== null && i.score_test !== undefined) {
+                        <span class="rounded-full bg-surface-100 px-3 py-1 dark:bg-surface-800">Score global (test) : <strong>{{ i.score_test | percent: '1.0-1' }}</strong></span>
+                    }
+                    @if (i.comparaison?.length) {
+                        <span class="rounded-full bg-surface-100 px-3 py-1 dark:bg-surface-800">{{ i.comparaison!.length }} CNN comparés</span>
+                    }
+                </div>
+            }
+            <span class="mt-auto text-sm font-medium text-primary">Ouvrir le module <i class="pi pi-arrow-right ml-1 text-xs"></i></span>
+        </a>
+
+        <a [routerLink]="['/', routes.Prevision_PATH]" class="card !mb-0 flex flex-col gap-3 transition hover:shadow-md">
+            <div class="flex items-center gap-3">
+                <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><i class="pi pi-chart-line text-lg"></i></div>
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-muted-color">Module 2</span>
+                    <h2 class="!m-0 !text-lg !font-semibold">Prévision du cours de Merck sur 20 jours</h2>
+                </div>
+            </div>
+            <p class="!m-0 text-sm text-muted-color">
+                Modèle de série temporelle NeuralProphet (réseau de neurones autorégressif) qui prévoit le prix de l'action Merck (MRK)
+                pour les 20 prochains jours ouvrés, avec un contrôle de fiabilité sur les 20 derniers jours connus.
+            </p>
+            <span class="mt-auto text-sm font-medium text-primary">Ouvrir le module <i class="pi pi-arrow-right ml-1 text-xs"></i></span>
+        </a>
+    </div>
+
+    <!-- Démarche -->
+    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[2fr_1fr]">
+        <div class="card !mb-0 flex flex-col gap-4">
+            <h2 class="!m-0 !text-lg !font-semibold">Démarche du module 1 (notebook 1)</h2>
+            <ol class="!m-0 grid list-none grid-cols-1 gap-3 !p-0 md:grid-cols-2">
+                @for (e of etapesClassification; track e.titre; let n = $index) {
+                    <li class="flex gap-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-contrast">{{ n + 1 }}</span>
+                        <div class="flex flex-col gap-1">
+                            <span class="font-medium">{{ e.titre }}</span>
+                            <span class="text-sm text-muted-color">{{ e.texte }}</span>
+                        </div>
+                    </li>
+                }
+            </ol>
+        </div>
+        <div class="card !mb-0 flex flex-col gap-4">
+            <h2 class="!m-0 !text-lg !font-semibold">Démarche du module 2 (notebook 2)</h2>
+            <ol class="!m-0 flex list-none flex-col gap-3 !p-0">
+                @for (e of etapesPrevision; track e.titre; let n = $index) {
+                    <li class="flex gap-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-contrast">{{ n + 1 }}</span>
+                        <div class="flex flex-col gap-1">
+                            <span class="font-medium">{{ e.titre }}</span>
+                            <span class="text-sm text-muted-color">{{ e.texte }}</span>
+                        </div>
+                    </li>
+                }
+            </ol>
+        </div>
+    </div>
+
+    <!-- Technologies et livrables -->
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div class="card !mb-0 flex flex-col gap-3">
+            <h2 class="!m-0 !text-lg !font-semibold">Technologies</h2>
+            <div class="flex flex-wrap gap-2">
+                @for (t of technologies; track t) {
+                    <span class="rounded-full border border-surface-200 px-3 py-1 text-sm dark:border-surface-700">{{ t }}</span>
+                }
+            </div>
+            <p class="!m-0 text-sm text-muted-color">
+                Les modèles sont servis par une API FastAPI ; l'interface Angular l'interroge pour chaque prédiction.
+            </p>
+        </div>
+        <div class="card !mb-0 flex flex-col gap-3">
+            <h2 class="!m-0 !text-lg !font-semibold">Livrables</h2>
+            <ul class="!m-0 flex list-none flex-col gap-2 !p-0 text-sm">
+                <li><i class="pi pi-book mr-2 text-primary"></i>Notebook 1 : classification d'images (PyTorch)</li>
+                <li><i class="pi pi-book mr-2 text-primary"></i>Notebook 2 : prévision Merck (NeuralProphet)</li>
+                <li><i class="pi pi-desktop mr-2 text-primary"></i>Cette application web</li>
+            </ul>
+            <a [href]="depot" target="_blank" rel="noopener" class="w-fit text-sm font-medium text-primary">
+                <i class="pi pi-github mr-1"></i>Code source sur GitHub
+            </a>
+        </div>
+    </div>
+
+    <p class="!m-0 text-xs text-muted-color">
+        Projet pédagogique : les résultats ne remplacent ni un diagnostic médical, ni un conseil financier.
+    </p>
+</div>

@@ -23,7 +23,9 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
     private service = inject(DeepLearningService);
 
     @ViewChild('graphique') graphique?: ElementRef<HTMLDivElement>;
+    @ViewChild('graphiqueBacktest') graphiqueBacktest?: ElementRef<HTMLDivElement>;
     private chart?: IChartApi;
+    private chartBacktest?: IChartApi;
     private observateurTheme?: MutationObserver;
 
     chargement = signal(true);
@@ -46,9 +48,37 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
         this.charger();
     }
 
+    // Le modèle fait-il mieux que la référence naïve (dernier prix répété) ?
+    gainSurNaif = computed(() => {
+        const b = this.prevision()?.backtest;
+        return b && b.naif.mae > 0 ? (1 - b.neuralprophet.mae / b.naif.mae) * 100 : null;
+    });
+
     ngOnDestroy(): void {
         this.observateurTheme?.disconnect();
         this.chart?.remove();
+        this.chartBacktest?.remove();
+    }
+
+    // Jour de la semaine en français (lun., mar.…)
+    jourSemaine(date: string): string {
+        return new Date(`${date}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'short' });
+    }
+
+    // Télécharge la prévision des 20 jours au format CSV (ouvrable dans Excel)
+    exporterCsv(): void {
+        const p = this.prevision();
+        if (!p) return;
+        const lignes = [
+            'jour;date;prix_prevu_usd;ecart_dernier_cours_pct',
+            ...p.previsions.map((x) => [`J+${x.jour}`, x.date, x.prix.toFixed(2).replace('.', ','), ((x.prix / p.dernier_cours - 1) * 100).toFixed(2).replace('.', ',')].join(';'))
+        ];
+        const blob = new Blob(['\ufeff' + lignes.join('\n')], { type: 'text/csv;charset=utf-8' });   // \ufeff : accents lisibles dans Excel
+        const lien = document.createElement('a');
+        lien.href = URL.createObjectURL(blob);
+        lien.download = `prevision_${p.action}_${p.derniere_date}.csv`;
+        lien.click();
+        URL.revokeObjectURL(lien.href);
     }
 
     charger(): void {
@@ -58,7 +88,10 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
             next: (prevision) => {
                 this.prevision.set(prevision);
                 this.chargement.set(false);
-                setTimeout(() => this.dessiner(prevision));      // le conteneur du graphique est alors affiché
+                setTimeout(() => {                              // les conteneurs des graphiques sont alors affichés
+                    this.dessiner(prevision);
+                    this.dessinerBacktest(prevision);
+                });
             },
             error: (e: HttpErrorResponse) => {
                 this.erreur.set(
@@ -108,13 +141,36 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
         this.observateurTheme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     }
 
+    // ---------- Graphique du backtest : vrais prix (bleu) et prix prévus (orange) ----------
+
+    private dessinerBacktest(p: PrevisionAction): void {
+        const conteneur = this.graphiqueBacktest?.nativeElement;
+        if (!conteneur || !p.backtest) return;
+        this.chartBacktest?.remove();
+        this.chartBacktest = createChart(conteneur, {
+            autoSize: true,
+            crosshair: { mode: CrosshairMode.Normal },
+            rightPriceScale: { borderVisible: false },
+            timeScale: { borderVisible: false },
+            localization: { locale: 'fr-FR', priceFormatter: (prix: number) => `${prix.toFixed(2)} $` }
+        });
+        this.appliquerTheme();
+        const reel = this.chartBacktest.addSeries(LineSeries, { color: '#2962ff', lineWidth: 2, title: 'Prix réel' });
+        reel.setData(p.backtest.points.map((x) => ({ time: x.date, value: x.reel })));
+        const prevu = this.chartBacktest.addSeries(LineSeries, { color: '#ef6c00', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'Prévu' });
+        prevu.setData(p.backtest.points.map((x) => ({ time: x.date, value: x.prevu })));
+        this.chartBacktest.timeScale().fitContent();
+    }
+
     private appliquerTheme(): void {
         const racine = document.documentElement.classList;
         const sombre = racine.contains('app-dark') || racine.contains('dark');
         const grille = sombre ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
-        this.chart?.applyOptions({
-            layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: sombre ? '#b2b5be' : '#5d606b' },
-            grid: { vertLines: { color: grille }, horzLines: { color: grille } }
-        });
+        for (const graphique of [this.chart, this.chartBacktest]) {
+            graphique?.applyOptions({
+                layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: sombre ? '#b2b5be' : '#5d606b' },
+                grid: { vertLines: { color: grille }, horzLines: { color: grille } }
+            });
+        }
     }
 }

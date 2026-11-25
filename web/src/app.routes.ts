@@ -11,8 +11,14 @@ export const appRoutes: Routes = [
         component: AppLayout,
         // canActivate: [authGuard],
         children: [
-            // Page d'accueil : le module 1
-            { path: '', pathMatch: 'full', redirectTo: AppConstantRoute.Classification_PATH },
+            // Page d'accueil : présentation du projet
+            { path: '', pathMatch: 'full', redirectTo: AppConstantRoute.APropos_PATH },
+            {
+                path: AppConstantRoute.APropos_PATH,
+                title: 'À propos du projet',
+                loadComponent: () => import('./app/pages/deep-learning/a-propos/a-propos').then((c) => c.AProposComponent),
+                data: { breadcrumb: 'À propos' },
+            },
 
             // Module 1 : classification d'images de maladies de peau (CNN)
             {

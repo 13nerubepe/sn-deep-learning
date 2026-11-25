@@ -6,15 +6,19 @@ import { Message } from 'primeng/message';
 import { ProgressBar } from 'primeng/progressbar';
 import { Skeleton } from 'primeng/skeleton';
 import { Tag } from 'primeng/tag';
+import { SelectButton } from 'primeng/selectbutton';
+import { Dialog } from 'primeng/dialog';
+import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 
-import { InfoClassification, LigneComparaison, ResultatClassification } from '@/app/models/deep-learning-model';
+import { ExempleImage, GraphiqueNotebook, InfoClassification, LigneComparaison, ResultatClassification } from '@/app/models/deep-learning-model';
 import { DeepLearningService } from '@/app/pages/service/service/deep-learning-service';
 
 // Module 1 du projet Deep Learning : prédire la maladie de peau présente sur une image.
 @Component({
     selector: 'app-classification',
     standalone: true,
-    imports: [DecimalPipe, PercentPipe, ButtonDirective, Message, ProgressBar, Skeleton, Tag],
+    imports: [DecimalPipe, PercentPipe, DatePipe, FormsModule, ButtonDirective, Message, ProgressBar, Skeleton, Tag, SelectButton, Dialog],
     templateUrl: './classification.html'
 })
 export class ClassificationComponent implements OnInit, OnDestroy {
@@ -50,6 +54,16 @@ export class ClassificationComponent implements OnInit, OnDestroy {
     apercu = signal<string | null>(null);                      // adresse locale de l'image, pour l'afficher
     glisser = signal(false);                                   // une image est glissée au-dessus de la zone
 
+    exemples = signal<ExempleImage[]>([]);                     // images de test du notebook
+    graphiques = signal<GraphiqueNotebook[]>([]);              // graphiques du notebook
+    graphiqueOuvert = signal<GraphiqueNotebook | null>(null);  // graphique affiché en grand
+    vue = signal<'image' | 'gradcam'>('gradcam');              // image d'origine ou carte Grad-CAM
+    readonly optionsVue = [
+        { label: 'Grad-CAM', value: 'gradcam' },
+        { label: 'Image d\'origine', value: 'image' }
+    ];
+    historique = this.service.historique;                      // prédictions de la visite
+
     chargement = signal(false);                                // prédiction en cours
     resultat = signal<ResultatClassification | null>(null);
     erreur = signal<string | null>(null);
@@ -58,6 +72,22 @@ export class ClassificationComponent implements OnInit, OnDestroy {
         this.service.getInfoClassification().subscribe({
             next: (info) => this.info.set(info),
             error: (e: HttpErrorResponse) => this.erreurInfo.set(this.messageErreur(e))
+        });
+        this.service.getExemples().subscribe({ next: (liste) => this.exemples.set(liste), error: () => this.exemples.set([]) });
+        this.service.getGraphiques().subscribe({ next: (liste) => this.graphiques.set(liste), error: () => this.graphiques.set([]) });
+    }
+
+    // Adresse complète d'un fichier de l'API (exemple, graphique)
+    url(chemin: string): string {
+        return this.service.urlFichier(chemin);
+    }
+
+    // Essaie une image d'exemple en un clic
+    essayerExemple(exemple: ExempleImage): void {
+        this.erreur.set(null);
+        this.service.telechargerImage(exemple.url).subscribe({
+            next: (blob) => this.prendreFichier(new File([blob], exemple.fichier, { type: blob.type || 'image/jpeg' })),
+            error: (e: HttpErrorResponse) => this.erreur.set(this.messageErreur(e))
         });
     }
 
@@ -109,7 +139,9 @@ export class ClassificationComponent implements OnInit, OnDestroy {
         this.service.predireImage(fichier).subscribe({
             next: (resultat) => {
                 this.resultat.set(resultat);
+                this.vue.set(resultat.gradcam ? 'gradcam' : 'image');
                 this.chargement.set(false);
+                this.ajouterHistorique(fichier, resultat);
             },
             error: (e: HttpErrorResponse) => {
                 this.erreur.set(this.messageErreur(e));
@@ -130,6 +162,45 @@ export class ClassificationComponent implements OnInit, OnDestroy {
         if (probabilite >= 0.7) return 'success';
         if (probabilite >= 0.4) return 'warn';
         return 'danger';
+    }
+
+    // Message selon la confiance du modèle
+    messageAvis(r: ResultatClassification): { severite: 'success' | 'warn' | 'error'; texte: string } {
+        if (r.avis === 'tres_incertain') {
+            return { severite: 'error', texte: "Le modèle est très incertain. L'image ne ressemble peut-être à aucune des 5 maladies apprises, ou elle n'est pas assez nette. Ne vous fiez pas à ce résultat." };
+        }
+        if (r.avis === 'hesitant') {
+            return { severite: 'warn', texte: `Le modèle hésite entre ${r.probabilites[0].nom_court} et ${r.probabilites[1].nom_court}. Regardez les deux premières propositions.` };
+        }
+        return { severite: 'success', texte: 'Le modèle est assez sûr de sa réponse.' };
+    }
+
+    // Garde une miniature de l'image et le résultat dans l'historique de la visite
+    private ajouterHistorique(fichier: File, r: ResultatClassification): void {
+        const lecteur = new FileReader();
+        lecteur.onload = () => {
+            const image = new Image();
+            image.onload = () => {
+                const toile = document.createElement('canvas');
+                const cote = 96;                                          // miniature 96 × 96
+                toile.width = cote;
+                toile.height = cote;
+                const ctx = toile.getContext('2d');
+                if (!ctx) return;
+                const echelle = Math.max(cote / image.width, cote / image.height);
+                const l = image.width * echelle;
+                const h = image.height * echelle;
+                ctx.drawImage(image, (cote - l) / 2, (cote - h) / 2, l, h);
+                const entree = { miniature: toile.toDataURL('image/jpeg', 0.8), nom: fichier.name, classe: r.prediction.nom_court, probabilite: r.prediction.probabilite, heure: new Date() };
+                this.historique.update((liste) => [entree, ...liste].slice(0, 12));   // 12 dernières prédictions
+            };
+            image.src = lecteur.result as string;
+        };
+        lecteur.readAsDataURL(fichier);
+    }
+
+    viderHistorique(): void {
+        this.historique.set([]);
     }
 
     // Couleur d'une valeur de critère (entre 0 et 1)
