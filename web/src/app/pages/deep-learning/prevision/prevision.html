@@ -15,6 +15,9 @@
                 [disabled]="chargement()" (click)="charger()"></button>
     </div>
 
+    <!-- Boutons des pages du module -->
+    <app-navigation-pages [pages]="pages" [active]="section()" [base]="routes.Prevision_PATH" />
+
     @if (chargement()) {
         <div class="card !mb-0 flex flex-col gap-3">
             <span class="text-sm text-muted-color">
@@ -25,134 +28,153 @@
     } @else if (erreur()) {
         <p-message severity="error" [text]="erreur()!" />
     } @else if (prevision(); as p) {
+        @switch (section()) {
+            @case ('fiabilite') {
+                <!-- Page 2 : fiabilité du modèle (backtest) -->
+                <!-- Backtest : fiabilité du modèle -->
+                @if (p.backtest; as b) {
+                    <div class="card !mb-0 flex flex-col gap-4">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h2 class="!m-0 !text-lg !font-semibold">Le modèle est-il fiable ? (backtest)</h2>
+                                <span class="text-sm text-muted-color">
+                                    On cache les {{ b.points.length }} derniers jours connus ({{ b.debut | date: 'dd/MM' }} → {{ b.fin | date: 'dd/MM/yyyy' }}), on les prévoit, puis on compare avec les vrais prix.
+                                </span>
+                            </div>
+                            @if (gainSurNaif() !== null) {
+                                <p-tag [value]="gainSurNaif()! >= 0
+                                            ? 'Erreur ' + (gainSurNaif()! | number: '1.0-0') + ' % plus faible que la référence naïve'
+                                            : 'Erreur ' + (-gainSurNaif()! | number: '1.0-0') + ' % plus forte que la référence naïve'"
+                                       [severity]="gainSurNaif()! >= 0 ? 'success' : 'warn'" />
+                            }
+                        </div>
 
-        <!-- Indicateurs -->
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div class="card !mb-0">
-                <span class="text-sm text-muted-color">Dernier cours connu</span>
-                <div class="text-2xl font-semibold tabular-nums">{{ p.dernier_cours | number: '1.2-2' }} $</div>
-                <span class="text-xs text-muted-color">au {{ p.derniere_date | date: 'dd/MM/yyyy' }}</span>
-            </div>
-            <div class="card !mb-0">
-                <span class="text-sm text-muted-color">Prévision à J+{{ p.horizon }}</span>
-                <div class="flex items-center gap-2">
-                    <span class="text-2xl font-semibold tabular-nums">{{ prixFinal() | number: '1.2-2' }} $</span>
-                    @if (variation() !== null) {
-                        <p-tag [value]="(variation()! >= 0 ? '+' : '') + (variation()! | number: '1.2-2') + ' %'"
-                               [severity]="variation()! >= 0 ? 'success' : 'danger'" />
-                    }
-                </div>
-                <span class="text-xs text-muted-color">au {{ p.previsions.at(-1)?.date | date: 'dd/MM/yyyy' }}</span>
-            </div>
-            <div class="card !mb-0">
-                <span class="text-sm text-muted-color">Fourchette prévue sur 20 jours</span>
-                <div class="text-2xl font-semibold tabular-nums">
-                    {{ fourchette()?.min | number: '1.2-2' }} – {{ fourchette()?.max | number: '1.2-2' }} $
-                </div>
-                <span class="text-xs text-muted-color">Source des données : {{ p.source }}</span>
-            </div>
-        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[32rem] border-collapse text-sm">
+                                <thead>
+                                    <tr class="border-b border-surface-200 text-left text-xs uppercase tracking-wide text-muted-color dark:border-surface-700">
+                                        <th class="py-2 pr-3">Modèle</th>
+                                        <th class="py-2 pr-3 text-right">MAE</th>
+                                        <th class="py-2 pr-3 text-right">RMSE</th>
+                                        <th class="py-2 text-right">MAPE</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-surface-100 bg-primary/10 font-semibold dark:border-surface-800">
+                                        <td class="py-2 pr-3">NeuralProphet</td>
+                                        <td class="py-2 pr-3 text-right tabular-nums">{{ b.neuralprophet.mae | number: '1.2-2' }} $</td>
+                                        <td class="py-2 pr-3 text-right tabular-nums">{{ b.neuralprophet.rmse | number: '1.2-2' }} $</td>
+                                        <td class="py-2 text-right tabular-nums">{{ b.neuralprophet.mape | number: '1.2-2' }} %</td>
+                                    </tr>
+                                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                                        <td class="py-2 pr-3">Référence naïve (dernier prix répété)</td>
+                                        <td class="py-2 pr-3 text-right tabular-nums">{{ b.naif.mae | number: '1.2-2' }} $</td>
+                                        <td class="py-2 pr-3 text-right tabular-nums">{{ b.naif.rmse | number: '1.2-2' }} $</td>
+                                        <td class="py-2 text-right tabular-nums">{{ b.naif.mape | number: '1.2-2' }} %</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="!m-0 text-xs text-muted-color">
+                            MAE : erreur moyenne en dollars · RMSE : pénalise davantage les grosses erreurs · MAPE : erreur moyenne en pourcentage du prix. Plus c'est bas, mieux c'est.
+                        </p>
 
-        <!-- Graphique -->
-        <div class="card !mb-0">
-            <div class="mb-3 flex flex-wrap items-center gap-4 text-sm">
-                <span class="flex items-center gap-2"><span class="inline-block h-0.5 w-6 bg-[#2962ff]"></span>Historique (1 an)</span>
-                <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed border-[#ef6c00]"></span>Prévision {{ p.horizon }} jours ouvrés</span>
-            </div>
-            <div #graphique class="h-[24rem] w-full"></div>
-        </div>
-
-        <!-- Backtest : fiabilité du modèle -->
-        @if (p.backtest; as b) {
-            <div class="card !mb-0 flex flex-col gap-4">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <h2 class="!m-0 !text-lg !font-semibold">Le modèle est-il fiable ? (backtest)</h2>
-                        <span class="text-sm text-muted-color">
-                            On cache les {{ b.points.length }} derniers jours connus ({{ b.debut | date: 'dd/MM' }} → {{ b.fin | date: 'dd/MM/yyyy' }}), on les prévoit, puis on compare avec les vrais prix.
-                        </span>
+                        <div>
+                            <div class="mb-2 flex flex-wrap items-center gap-4 text-sm">
+                                <span class="flex items-center gap-2"><span class="inline-block h-0.5 w-6" style="background:#2962ff"></span>Prix réel</span>
+                                <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed" style="border-color:#ef6c00"></span>Prix prévu par NeuralProphet</span>
+                            </div>
+                            <div #graphiqueBacktest class="h-[18rem] w-full"></div>
+                        </div>
                     </div>
-                    @if (gainSurNaif() !== null) {
-                        <p-tag [value]="gainSurNaif()! >= 0
-                                    ? 'Erreur ' + (gainSurNaif()! | number: '1.0-0') + ' % plus faible que la référence naïve'
-                                    : 'Erreur ' + (-gainSurNaif()! | number: '1.0-0') + ' % plus forte que la référence naïve'"
-                               [severity]="gainSurNaif()! >= 0 ? 'success' : 'warn'" />
-                    }
-                </div>
+                }
 
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[32rem] border-collapse text-sm">
-                        <thead>
-                            <tr class="border-b border-surface-200 text-left text-xs uppercase tracking-wide text-muted-color dark:border-surface-700">
-                                <th class="py-2 pr-3">Modèle</th>
-                                <th class="py-2 pr-3 text-right">MAE</th>
-                                <th class="py-2 pr-3 text-right">RMSE</th>
-                                <th class="py-2 text-right">MAPE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="border-b border-surface-100 bg-primary/10 font-semibold dark:border-surface-800">
-                                <td class="py-2 pr-3">NeuralProphet</td>
-                                <td class="py-2 pr-3 text-right tabular-nums">{{ b.neuralprophet.mae | number: '1.2-2' }} $</td>
-                                <td class="py-2 pr-3 text-right tabular-nums">{{ b.neuralprophet.rmse | number: '1.2-2' }} $</td>
-                                <td class="py-2 text-right tabular-nums">{{ b.neuralprophet.mape | number: '1.2-2' }} %</td>
-                            </tr>
-                            <tr class="border-b border-surface-100 dark:border-surface-800">
-                                <td class="py-2 pr-3">Référence naïve (dernier prix répété)</td>
-                                <td class="py-2 pr-3 text-right tabular-nums">{{ b.naif.mae | number: '1.2-2' }} $</td>
-                                <td class="py-2 pr-3 text-right tabular-nums">{{ b.naif.rmse | number: '1.2-2' }} $</td>
-                                <td class="py-2 text-right tabular-nums">{{ b.naif.mape | number: '1.2-2' }} %</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <p class="!m-0 text-xs text-muted-color">
-                    MAE : erreur moyenne en dollars · RMSE : pénalise davantage les grosses erreurs · MAPE : erreur moyenne en pourcentage du prix. Plus c'est bas, mieux c'est.
-                </p>
-
-                <div>
-                    <div class="mb-2 flex flex-wrap items-center gap-4 text-sm">
-                        <span class="flex items-center gap-2"><span class="inline-block h-0.5 w-6 bg-[#2962ff]"></span>Prix réel</span>
-                        <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed border-[#ef6c00]"></span>Prix prévu par NeuralProphet</span>
+                @if (!p.backtest) {
+                    <div class="card !mb-0 flex flex-col items-center gap-2 py-12 text-center text-muted-color">
+                        <i class="pi pi-check-square text-3xl"></i>
+                        <span class="font-medium">Backtest indisponible</span>
+                        <span class="text-sm">L'API n'a pas pu calculer le contrôle de fiabilité. Cliquez sur « Actualiser ».</span>
                     </div>
-                    <div #graphiqueBacktest class="h-[18rem] w-full"></div>
+                }
+            }
+            @case ('tableau') {
+                <!-- Page 3 : prévision jour par jour -->
+                <!-- Tableau des 20 jours -->
+                <div class="card !mb-0">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="!m-0 !text-lg !font-semibold">Prévision jour par jour</h2>
+                        <button pButton type="button" icon="pi pi-download" label="Exporter en CSV" severity="secondary" [outlined]="true" size="small" (click)="exporterCsv()"></button>
+                    </div>
+                    <p-table [value]="p.previsions" [scrollable]="true" scrollHeight="28rem" styleClass="p-datatable-sm">
+                        <ng-template #header>
+                            <tr>
+                                <th>Jour</th>
+                                <th>Date</th>
+                                <th class="text-right">Prix prévu</th>
+                                <th class="text-right">Écart avec le dernier cours</th>
+                            </tr>
+                        </ng-template>
+                        <ng-template #body let-ligne>
+                            <tr>
+                                <td>J+{{ ligne.jour }}</td>
+                                <td>{{ jourSemaine(ligne.date) }} {{ ligne.date | date: 'dd/MM/yyyy' }}</td>
+                                <td class="text-right tabular-nums">{{ ligne.prix | number: '1.2-2' }} $</td>
+                                <td class="text-right tabular-nums"
+                                    [class.text-green-600]="ligne.prix >= p.dernier_cours"
+                                    [class.text-red-600]="ligne.prix < p.dernier_cours">
+                                    {{ ligne.prix >= p.dernier_cours ? '+' : '' }}{{ (ligne.prix / p.dernier_cours - 1) * 100 | number: '1.2-2' }} %
+                                </td>
+                            </tr>
+                        </ng-template>
+                    </p-table>
                 </div>
-            </div>
+            }
+            @default {
+                <!-- Page 1 : prévision et graphique -->
+                <!-- Indicateurs -->
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div class="card !mb-0">
+                        <span class="text-sm text-muted-color">Dernier cours connu</span>
+                        <div class="text-2xl font-semibold tabular-nums">{{ p.dernier_cours | number: '1.2-2' }} $</div>
+                        <span class="text-xs text-muted-color">au {{ p.derniere_date | date: 'dd/MM/yyyy' }}</span>
+                    </div>
+                    <div class="card !mb-0">
+                        <span class="text-sm text-muted-color">Prévision à J+{{ p.horizon }}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-2xl font-semibold tabular-nums">{{ prixFinal() | number: '1.2-2' }} $</span>
+                            @if (variation() !== null) {
+                                <p-tag [value]="(variation()! >= 0 ? '+' : '') + (variation()! | number: '1.2-2') + ' %'"
+                                       [severity]="variation()! >= 0 ? 'success' : 'danger'" />
+                            }
+                        </div>
+                        <span class="text-xs text-muted-color">au {{ p.previsions.at(-1)?.date | date: 'dd/MM/yyyy' }}</span>
+                    </div>
+                    <div class="card !mb-0">
+                        <span class="text-sm text-muted-color">Fourchette prévue sur 20 jours</span>
+                        <div class="text-2xl font-semibold tabular-nums">
+                            {{ fourchette()?.min | number: '1.2-2' }} – {{ fourchette()?.max | number: '1.2-2' }} $
+                        </div>
+                        <span class="text-xs text-muted-color">Source des données : {{ p.source }}</span>
+                    </div>
+                </div>
+
+                <!-- Graphique -->
+                <div class="card !mb-0">
+                    <div class="mb-3 flex flex-wrap items-center gap-4 text-sm">
+                        <span class="flex items-center gap-2"><span class="inline-block h-0.5 w-6" style="background:#2962ff"></span>Historique (1 an)</span>
+                        <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed" style="border-color:#ef6c00"></span>Prévision {{ p.horizon }} jours ouvrés</span>
+                    </div>
+                    <div #graphique class="h-[24rem] w-full"></div>
+                </div>
+            }
         }
-
-        <!-- Tableau des 20 jours -->
-        <div class="card !mb-0">
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h2 class="!m-0 !text-lg !font-semibold">Prévision jour par jour</h2>
-                <button pButton type="button" icon="pi pi-download" label="Exporter en CSV" severity="secondary" [outlined]="true" size="small" (click)="exporterCsv()"></button>
-            </div>
-            <p-table [value]="p.previsions" [scrollable]="true" scrollHeight="28rem" styleClass="p-datatable-sm">
-                <ng-template #header>
-                    <tr>
-                        <th>Jour</th>
-                        <th>Date</th>
-                        <th class="text-right">Prix prévu</th>
-                        <th class="text-right">Écart avec le dernier cours</th>
-                    </tr>
-                </ng-template>
-                <ng-template #body let-ligne>
-                    <tr>
-                        <td>J+{{ ligne.jour }}</td>
-                        <td>{{ jourSemaine(ligne.date) }} {{ ligne.date | date: 'dd/MM/yyyy' }}</td>
-                        <td class="text-right tabular-nums">{{ ligne.prix | number: '1.2-2' }} $</td>
-                        <td class="text-right tabular-nums"
-                            [class.text-green-600]="ligne.prix >= p.dernier_cours"
-                            [class.text-red-600]="ligne.prix < p.dernier_cours">
-                            {{ ligne.prix >= p.dernier_cours ? '+' : '' }}{{ (ligne.prix / p.dernier_cours - 1) * 100 | number: '1.2-2' }} %
-                        </td>
-                    </tr>
-                </ng-template>
-            </p-table>
-        </div>
 
         <p class="!m-0 text-xs text-muted-color">
             Prévision indicative réalisée dans le cadre d'un projet de Deep Learning : ce n'est pas un conseil financier.
             Un cours de bourse dépend d'événements imprévisibles.
         </p>
     }
+
+    <!-- Boutons Précédent / Suivant -->
+    <app-navigation-pages [pages]="pages" [active]="section()" [base]="routes.Prevision_PATH" position="bas" />
 </div>

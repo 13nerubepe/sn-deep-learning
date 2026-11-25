@@ -1,4 +1,9 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, ViewChild, computed, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
+import { AppConstantRoute } from '@/app/constants';
+import { NavigationPages, PageModule } from '../navigation-pages/navigation-pages';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ButtonDirective } from 'primeng/button';
@@ -16,11 +21,38 @@ import { DeepLearningService } from '@/app/pages/service/service/deep-learning-s
 @Component({
     selector: 'app-prevision',
     standalone: true,
-    imports: [DatePipe, DecimalPipe, ButtonDirective, Message, Skeleton, TableModule, Tag],
+    imports: [NavigationPages, DatePipe, DecimalPipe, ButtonDirective, Message, Skeleton, TableModule, Tag],
     templateUrl: './prevision.html'
 })
-export class PrevisionComponent implements AfterViewInit, OnDestroy {
+export class PrevisionComponent implements OnDestroy {
     private service = inject(DeepLearningService);
+    private route = inject(ActivatedRoute);
+
+    readonly routes = AppConstantRoute;
+
+    // Les pages du module 2 (une adresse par page : /prevision-merck/<id>)
+    readonly pages: PageModule[] = [
+        { id: 'prevision', label: 'Prévision', icon: 'pi pi-chart-line' },
+        { id: 'fiabilite', label: 'Fiabilité (backtest)', icon: 'pi pi-check-square' },
+        { id: 'tableau', label: 'Tableau des 20 jours', icon: 'pi pi-table' }
+    ];
+
+    // Page affichée, lue dans l'adresse
+    section = toSignal(this.route.paramMap.pipe(map((p) => p.get('section') ?? 'prevision')), { initialValue: 'prevision' });
+
+    constructor() {
+        this.charger();                                           // la prévision est calculée une seule fois pour les 3 pages
+        // À chaque changement de page (ou de données), on redessine le graphique de la page affichée
+        effect(() => {
+            const page = this.section();
+            const p = this.prevision();
+            if (!p || this.chargement()) return;
+            setTimeout(() => {                                    // le conteneur du graphique est alors affiché
+                if (page === 'prevision') this.dessiner(p);
+                if (page === 'fiabilite') this.dessinerBacktest(p);
+            });
+        });
+    }
 
     @ViewChild('graphique') graphique?: ElementRef<HTMLDivElement>;
     @ViewChild('graphiqueBacktest') graphiqueBacktest?: ElementRef<HTMLDivElement>;
@@ -43,10 +75,6 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
         const prix = this.prevision()?.previsions.map((x) => x.prix) ?? [];
         return prix.length ? { min: Math.min(...prix), max: Math.max(...prix) } : null;
     });
-
-    ngAfterViewInit(): void {
-        this.charger();
-    }
 
     // Le modèle fait-il mieux que la référence naïve (dernier prix répété) ?
     gainSurNaif = computed(() => {
@@ -87,11 +115,7 @@ export class PrevisionComponent implements AfterViewInit, OnDestroy {
         this.service.getPrevisionMerck().subscribe({
             next: (prevision) => {
                 this.prevision.set(prevision);
-                this.chargement.set(false);
-                setTimeout(() => {                              // les conteneurs des graphiques sont alors affichés
-                    this.dessiner(prevision);
-                    this.dessinerBacktest(prevision);
-                });
+                this.chargement.set(false);                           // l'effet du constructeur dessine le graphique
             },
             error: (e: HttpErrorResponse) => {
                 this.erreur.set(

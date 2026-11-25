@@ -10,6 +10,11 @@ import { SelectButton } from 'primeng/selectbutton';
 import { Dialog } from 'primeng/dialog';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
+import { AppConstantRoute } from '@/app/constants';
+import { NavigationPages, PageModule } from '../navigation-pages/navigation-pages';
 
 import { ExempleImage, GraphiqueNotebook, InfoClassification, LigneComparaison, ResultatClassification } from '@/app/models/deep-learning-model';
 import { DeepLearningService } from '@/app/pages/service/service/deep-learning-service';
@@ -18,11 +23,26 @@ import { DeepLearningService } from '@/app/pages/service/service/deep-learning-s
 @Component({
     selector: 'app-classification',
     standalone: true,
-    imports: [DecimalPipe, PercentPipe, DatePipe, FormsModule, ButtonDirective, Message, ProgressBar, Skeleton, Tag, SelectButton, Dialog],
+    imports: [NavigationPages, DecimalPipe, PercentPipe, DatePipe, FormsModule, ButtonDirective, Message, ProgressBar, Skeleton, Tag, SelectButton, Dialog],
     templateUrl: './classification.html'
 })
 export class ClassificationComponent implements OnInit, OnDestroy {
     private service = inject(DeepLearningService);
+    private route = inject(ActivatedRoute);
+
+    readonly routes = AppConstantRoute;
+
+    // Les pages du module 1 (une adresse par page : /classification-images/<id>)
+    readonly pages: PageModule[] = [
+        { id: 'prediction', label: 'Prédiction', icon: 'pi pi-image' },
+        { id: 'historique', label: 'Historique', icon: 'pi pi-history' },
+        { id: 'performance', label: 'Performance', icon: 'pi pi-chart-bar' },
+        { id: 'comparaison', label: 'Comparaison des CNN', icon: 'pi pi-table' },
+        { id: 'graphiques', label: 'Graphiques', icon: 'pi pi-images' }
+    ];
+
+    // Page affichée, lue dans l'adresse
+    section = toSignal(this.route.paramMap.pipe(map((p) => p.get('section') ?? 'prediction')), { initialValue: 'prediction' });
 
     info = signal<InfoClassification | null>(null);           // modèle utilisé
     erreurInfo = signal<string | null>(null);

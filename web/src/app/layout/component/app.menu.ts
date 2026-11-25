@@ -27,8 +27,8 @@ export class AppMenu {
                 label: 'Projet Deep Learning',
                 items: [
                     { label: 'À propos du projet', icon: 'pi pi-fw pi-info-circle', routerLink: ['/a-propos'] },
-                    { label: "Classification d'images", icon: 'pi pi-fw pi-image', routerLink: ['/classification-images'] },
-                    { label: 'Prévision Merck (20 j)', icon: 'pi pi-fw pi-chart-line', routerLink: ['/prevision-merck'] },
+                    { label: "Classification d'images", icon: 'pi pi-fw pi-image', routerLink: ['/classification-images'], routerLinkActiveOptions: { paths: 'subset', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' } },
+                    { label: 'Prévision Merck (20 j)', icon: 'pi pi-fw pi-chart-line', routerLink: ['/prevision-merck'], routerLinkActiveOptions: { paths: 'subset', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' } },
                 ]
             },
         ];

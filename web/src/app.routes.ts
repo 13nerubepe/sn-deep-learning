@@ -21,15 +21,17 @@ export const appRoutes: Routes = [
             },
 
             // Module 1 : classification d'images de maladies de peau (CNN)
+            { path: AppConstantRoute.Classification_PATH, pathMatch: 'full', redirectTo: `${AppConstantRoute.Classification_PATH}/prediction` },
             {
-                path: AppConstantRoute.Classification_PATH,
+                path: `${AppConstantRoute.Classification_PATH}/:section`,       // prediction, historique, performance, comparaison, graphiques
                 title: "Classification d'images",
                 loadComponent: () => import('./app/pages/deep-learning/classification/classification').then((c) => c.ClassificationComponent),
                 data: { breadcrumb: 'Classification' },
             },
             // Module 2 : prévision du cours de Merck sur 20 jours (NeuralProphet)
+            { path: AppConstantRoute.Prevision_PATH, pathMatch: 'full', redirectTo: `${AppConstantRoute.Prevision_PATH}/prevision` },
             {
-                path: AppConstantRoute.Prevision_PATH,
+                path: `${AppConstantRoute.Prevision_PATH}/:section`,            // prevision, fiabilite, tableau
                 title: 'Prévision Merck',
                 loadComponent: () => import('./app/pages/deep-learning/prevision/prevision').then((c) => c.PrevisionComponent),
                 data: { breadcrumb: 'Prévision' },

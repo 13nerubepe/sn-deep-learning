@@ -42,285 +42,335 @@
         }
     </div>
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <!-- Boutons des pages du module -->
+    <app-navigation-pages [pages]="pages" [active]="section()" [base]="routes.Classification_PATH" />
 
-        <!-- Zone d'envoi de l'image -->
-        <div class="card !mb-0 flex flex-col gap-4">
-            <h2 class="!m-0 !text-lg !font-semibold">1. Choisir une image</h2>
-
-            <label
-                class="flex min-h-72 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-4 text-center transition-colors"
-                [class.border-primary]="glisser()"
-                [class.bg-primary/5]="glisser()"
-                [class.border-surface-300]="!glisser()"
-                (dragover)="survoler($event, true)"
-                (dragleave)="survoler($event, false)"
-                (drop)="deposer($event)">
-                <input type="file" accept="image/*" class="hidden" (change)="choisirFichier($event)" />
-                @if (apercu()) {
-                    <img [src]="apercu()" alt="Image envoyée" class="max-h-80 rounded-xl object-contain" />
-                    <span class="text-xs text-muted-color">{{ fichier()?.name }} · cliquez pour changer d'image</span>
-                } @else {
-                    <i class="pi pi-cloud-upload text-4xl text-primary"></i>
-                    <span class="font-medium">Glissez une image ici, ou cliquez pour la choisir</span>
-                    <span class="text-xs text-muted-color">JPG ou PNG · photo d'une lésion de la peau</span>
-                }
-            </label>
-
-            @if (fichier()) {
-                <div class="flex gap-2">
-                    <button pButton type="button" icon="pi pi-refresh" label="Relancer la prédiction" [disabled]="chargement()" (click)="predire()"></button>
-                    <button pButton type="button" icon="pi pi-times" label="Effacer" severity="secondary" [outlined]="true" (click)="reinitialiser()"></button>
+    @switch (section()) {
+        @case ('historique') {
+            <!-- Page 2 : historique des prédictions de la visite -->
+        <!-- Historique des prédictions de la visite -->
+        @if (historique().length) {
+            <div class="card !mb-0 flex flex-col gap-3">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="!m-0 !text-lg !font-semibold">Historique de la visite</h2>
+                    <button pButton type="button" icon="pi pi-trash" label="Vider" severity="secondary" [text]="true" size="small" (click)="viderHistorique()"></button>
                 </div>
-            }
-
-            @if (exemples().length) {
-                <div class="flex flex-col gap-2">
-                    <span class="text-sm font-medium">Pas d'image sous la main ? Essayez un exemple du jeu de test :</span>
-                    <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                        @for (ex of exemples(); track ex.fichier) {
-                            <button type="button" class="group flex flex-col gap-1 rounded-xl border border-surface-200 p-1.5 text-left transition hover:border-primary dark:border-surface-700"
-                                    [disabled]="chargement()" (click)="essayerExemple(ex)" [title]="ex.classe">
-                                <img [src]="url(ex.url)" [alt]="ex.classe" class="aspect-square w-full rounded-lg object-cover" loading="lazy" />
-                                <span class="truncate text-[11px] text-muted-color group-hover:text-primary">{{ ex.classe }}</span>
-                            </button>
-                        }
-                    </div>
-                </div>
-            }
-        </div>
-
-        <!-- Résultat -->
-        <div class="card !mb-0 flex flex-col gap-4">
-            <h2 class="!m-0 !text-lg !font-semibold">2. Résultat</h2>
-
-            @if (chargement()) {
-                <p-skeleton height="5rem" borderRadius="16px" />
-                @for (n of [1, 2, 3, 4, 5]; track n) {
-                    <p-skeleton height="1.5rem" />
-                }
-            } @else if (erreur()) {
-                <p-message severity="error" [text]="erreur()!" />
-            } @else if (resultat(); as r) {
-                @if (r.gradcam) {
-                    <div class="flex flex-col gap-2">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <span class="text-sm font-medium">Où le CNN a-t-il regardé ?</span>
-                            <p-selectbutton [options]="optionsVue" [ngModel]="vue()" (ngModelChange)="vue.set($event)" optionLabel="label" optionValue="value" [allowEmpty]="false" size="small" />
-                        </div>
-                        <img [src]="vue() === 'gradcam' ? r.gradcam : apercu()" alt="Carte Grad-CAM" class="mx-auto aspect-square w-full max-w-80 rounded-xl object-cover" />
-                        @if (vue() === 'gradcam') {
-                            <div class="flex items-center gap-2 text-xs text-muted-color">
-                                <span>Peu important</span>
-                                <span class="h-2 flex-1 rounded-full" style="background: linear-gradient(90deg, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)"></span>
-                                <span>Très important</span>
-                            </div>
-                            <span class="text-xs text-muted-color">Grad-CAM : les zones rouges sont celles qui ont le plus compté dans la décision du modèle.</span>
-                        }
-                    </div>
-                }
-
-                <div class="flex items-center justify-between gap-4 rounded-2xl bg-primary/10 p-5">
-                    <div>
-                        <span class="text-sm text-muted-color">Maladie prédite</span>
-                        <div class="text-2xl font-semibold">{{ r.prediction.classe }}</div>
-                    </div>
-                    <p-tag [value]="'Confiance ' + (r.prediction.probabilite | percent: '1.0-1')" [severity]="severite(r.prediction.probabilite)" />
-                </div>
-
-                <div class="flex flex-col gap-3">
-                    <span class="text-sm font-medium">Probabilité de chaque maladie (les 3 premières sont mises en avant)</span>
-                    @for (p of r.probabilites; track p.classe; let rang = $index) {
-                        <div class="flex flex-col gap-1" [class.opacity-50]="rang >= 3">
-                            <div class="flex justify-between text-sm">
-                                <span [class.font-semibold]="p.classe === r.prediction.classe">
-                                    @if (rang < 3) {
-                                        <span class="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">{{ rang + 1 }}</span>
-                                    }
-                                    {{ p.nom_court }}
-                                </span>
-                                <span class="tabular-nums">{{ p.probabilite * 100 | number: '1.1-1' }} %</span>
-                            </div>
-                            <p-progressbar [value]="p.probabilite * 100" [showValue]="false" [style]="{ height: '0.6rem' }" />
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+                    @for (h of historique(); track h.heure) {
+                        <div class="flex flex-col gap-1 rounded-xl border border-surface-200 p-2 dark:border-surface-700">
+                            <img [src]="h.miniature" [alt]="h.nom" class="aspect-square w-full rounded-lg object-cover" />
+                            <span class="truncate text-sm font-medium">{{ h.classe }}</span>
+                            <span class="text-xs text-muted-color">{{ h.probabilite | percent: '1.0-0' }} · {{ h.heure | date: 'HH:mm:ss' }}</span>
                         </div>
                     }
                 </div>
-
-                @if (r.avis) {
-                    <p-message [severity]="messageAvis(r).severite" [text]="messageAvis(r).texte" />
-                } @else if (r.prediction.probabilite < 0.5) {
-                    <p-message severity="warn" text="Confiance faible : le modèle hésite entre plusieurs maladies." />
-                }
-            } @else {
-                <div class="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-muted-color">
-                    <i class="pi pi-search text-3xl"></i>
-                    <span>Choisissez une image pour obtenir une prédiction.</span>
-                </div>
-            }
-
-            <p class="!m-0 text-xs text-muted-color">
-                Outil pédagogique réalisé dans le cadre d'un projet de Deep Learning : ce n'est pas un diagnostic médical.
-            </p>
-        </div>
-    </div>
-
-    <!-- Historique des prédictions de la visite -->
-    @if (historique().length) {
-        <div class="card !mb-0 flex flex-col gap-3">
-            <div class="flex items-center justify-between gap-2">
-                <h2 class="!m-0 !text-lg !font-semibold">Historique de la visite</h2>
-                <button pButton type="button" icon="pi pi-trash" label="Vider" severity="secondary" [text]="true" size="small" (click)="viderHistorique()"></button>
-            </div>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
-                @for (h of historique(); track h.heure) {
-                    <div class="flex flex-col gap-1 rounded-xl border border-surface-200 p-2 dark:border-surface-700">
-                        <img [src]="h.miniature" [alt]="h.nom" class="aspect-square w-full rounded-lg object-cover" />
-                        <span class="truncate text-sm font-medium">{{ h.classe }}</span>
-                        <span class="text-xs text-muted-color">{{ h.probabilite | percent: '1.0-0' }} · {{ h.heure | date: 'HH:mm:ss' }}</span>
-                    </div>
-                }
-            </div>
-        </div>
-    }
-
-    @if (info(); as i) {
-        <!-- Performance du modèle retenu (section 11 du notebook) -->
-        @if (metriquesTest().length) {
-            <div class="card !mb-0 flex flex-col gap-5">
-                <div class="flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <h2 class="!m-0 !text-lg !font-semibold">Performance du modèle retenu</h2>
-                        <span class="text-sm text-muted-color">
-                            {{ nomModele(i.architecture) }} · jeu de test{{ i.nb_images_test ? ' (' + i.nb_images_test + ' images jamais vues)' : '' }} · les 7 critères du notebook
-                        </span>
-                    </div>
-                    @if (i.score_test !== null && i.score_test !== undefined) {
-                        <div class="text-right">
-                            <div class="text-xs text-muted-color">Score global (moyenne des 7 critères)</div>
-                            <div class="text-3xl font-semibold text-primary tabular-nums">{{ i.score_test | percent: '1.0-1' }}</div>
-                        </div>
-                    }
-                </div>
-
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    @for (c of metriquesTest(); track c.cle) {
-                        <div class="flex flex-col gap-2 rounded-xl border border-surface-200 p-4 dark:border-surface-700">
-                            <div class="flex items-baseline justify-between gap-2">
-                                <span class="text-sm font-medium">{{ c.titre }}</span>
-                                <span class="text-xl font-semibold tabular-nums" [class]="couleurCritere(c.cle === 'MCC' ? (c.valeur + 1) / 2 : c.valeur)">
-                                    {{ c.cle === 'MCC' ? (c.valeur | number: '1.2-2') : (c.valeur | percent: '1.0-1') }}
-                                </span>
-                            </div>
-                            <p-progressbar [value]="(c.cle === 'MCC' ? (c.valeur + 1) / 2 : c.valeur) * 100" [showValue]="false" [style]="{ height: '0.4rem' }" />
-                            <span class="text-xs text-muted-color">{{ c.aide }}</span>
-                        </div>
-                    }
-                </div>
-
-                @if (i.ic_test?.accuracy_equilibree?.[0] !== null && i.ic_test?.accuracy_equilibree?.[0] !== undefined) {
-                    <p class="!m-0 text-sm text-muted-color">
-                        Intervalles de confiance à 95 % (bootstrap) : accuracy équilibrée
-                        [{{ i.ic_test!.accuracy_equilibree![0]! | percent: '1.0-1' }} ; {{ i.ic_test!.accuracy_equilibree![1]! | percent: '1.0-1' }}]
-                        @if (i.ic_test?.auroc?.[0] !== null && i.ic_test?.auroc?.[0] !== undefined) {
-                            · AUROC [{{ i.ic_test!.auroc![0]! | number: '1.2-2' }} ; {{ i.ic_test!.auroc![1]! | number: '1.2-2' }}]
-                        }
-                    </p>
-                }
-
-                @if (rappels().length) {
-                    <div class="flex flex-col gap-3">
-                        <span class="text-sm font-medium">Sensibilité par maladie (part des cas retrouvés)</span>
-                        @for (r of rappels(); track r.classe) {
-                            <div class="grid grid-cols-[9rem_1fr_3.5rem] items-center gap-3 text-sm">
-                                <span>{{ r.classe }}</span>
-                                <p-progressbar [value]="(r.valeur ?? 0) * 100" [showValue]="false" [style]="{ height: '0.6rem' }" />
-                                <span class="text-right tabular-nums" [class]="couleurCritere(r.valeur)">{{ r.valeur === null ? '—' : (r.valeur | percent: '1.0-0') }}</span>
-                            </div>
-                        }
-                    </div>
-                }
             </div>
         }
+            @if (!historique().length) {
+                <div class="card !mb-0 flex flex-col items-center gap-2 py-12 text-center text-muted-color">
+            <i class="pi pi-history text-3xl"></i>
+            <span class="font-medium">Aucune prédiction pour l'instant</span>
+            <span class="text-sm">Testez une image dans la page « Prédiction » : elle apparaîtra ici.</span>
+        </div>
+            }
+        }
+        @case ('performance') {
+            <!-- Page 3 : performance du modèle retenu -->
+            @if (info(); as i) {
+                <!-- Performance du modèle retenu (section 11 du notebook) -->
+                @if (metriquesTest().length) {
+                    <div class="card !mb-0 flex flex-col gap-5">
+                        <div class="flex flex-wrap items-end justify-between gap-3">
+                            <div>
+                                <h2 class="!m-0 !text-lg !font-semibold">Performance du modèle retenu</h2>
+                                <span class="text-sm text-muted-color">
+                                    {{ nomModele(i.architecture) }} · jeu de test{{ i.nb_images_test ? ' (' + i.nb_images_test + ' images jamais vues)' : '' }} · les 7 critères du notebook
+                                </span>
+                            </div>
+                            @if (i.score_test !== null && i.score_test !== undefined) {
+                                <div class="text-right">
+                                    <div class="text-xs text-muted-color">Score global (moyenne des 7 critères)</div>
+                                    <div class="text-3xl font-semibold text-primary tabular-nums">{{ i.score_test | percent: '1.0-1' }}</div>
+                                </div>
+                            }
+                        </div>
 
-        <!-- Comparaison des CNN (section 10-b du notebook) -->
-        @if (comparaison().length) {
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            @for (c of metriquesTest(); track c.cle) {
+                                <div class="flex flex-col gap-2 rounded-xl border border-surface-200 p-4 dark:border-surface-700">
+                                    <div class="flex items-baseline justify-between gap-2">
+                                        <span class="text-sm font-medium">{{ c.titre }}</span>
+                                        <span class="text-xl font-semibold tabular-nums" [class]="couleurCritere(c.cle === 'MCC' ? (c.valeur + 1) / 2 : c.valeur)">
+                                            {{ c.cle === 'MCC' ? (c.valeur | number: '1.2-2') : (c.valeur | percent: '1.0-1') }}
+                                        </span>
+                                    </div>
+                                    <p-progressbar [value]="(c.cle === 'MCC' ? (c.valeur + 1) / 2 : c.valeur) * 100" [showValue]="false" [style]="{ height: '0.4rem' }" />
+                                    <span class="text-xs text-muted-color">{{ c.aide }}</span>
+                                </div>
+                            }
+                        </div>
+
+                        @if (i.ic_test?.accuracy_equilibree?.[0] !== null && i.ic_test?.accuracy_equilibree?.[0] !== undefined) {
+                            <p class="!m-0 text-sm text-muted-color">
+                                Intervalles de confiance à 95 % (bootstrap) : accuracy équilibrée
+                                [{{ i.ic_test!.accuracy_equilibree![0]! | percent: '1.0-1' }} ; {{ i.ic_test!.accuracy_equilibree![1]! | percent: '1.0-1' }}]
+                                @if (i.ic_test?.auroc?.[0] !== null && i.ic_test?.auroc?.[0] !== undefined) {
+                                    · AUROC [{{ i.ic_test!.auroc![0]! | number: '1.2-2' }} ; {{ i.ic_test!.auroc![1]! | number: '1.2-2' }}]
+                                }
+                            </p>
+                        }
+
+                        @if (rappels().length) {
+                            <div class="flex flex-col gap-3">
+                                <span class="text-sm font-medium">Sensibilité par maladie (part des cas retrouvés)</span>
+                                @for (r of rappels(); track r.classe) {
+                                    <div class="grid grid-cols-[9rem_1fr_3.5rem] items-center gap-3 text-sm">
+                                        <span>{{ r.classe }}</span>
+                                        <p-progressbar [value]="(r.valeur ?? 0) * 100" [showValue]="false" [style]="{ height: '0.6rem' }" />
+                                        <span class="text-right tabular-nums" [class]="couleurCritere(r.valeur)">{{ r.valeur === null ? '—' : (r.valeur | percent: '1.0-0') }}</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+            }
+            @if (!metriquesTest().length) {
+                <div class="card !mb-0 flex flex-col items-center gap-2 py-12 text-center text-muted-color">
+            <i class="pi pi-chart-bar text-3xl"></i>
+            <span class="font-medium">Performance pas encore disponible</span>
+            <span class="text-sm">Relancez les sections 11 et 12 du notebook puis copiez classes.json dans ml-api/artefacts/.</span>
+        </div>
+            }
+        }
+        @case ('comparaison') {
+            <!-- Page 4 : comparaison des CNN -->
+            @if (info(); as i) {
+                <!-- Comparaison des CNN (section 10-b du notebook) -->
+                @if (comparaison().length) {
+                    <div class="card !mb-0 flex flex-col gap-4">
+                        <div>
+                            <h2 class="!m-0 !text-lg !font-semibold">Comparaison des {{ comparaison().length }} CNN</h2>
+                            <span class="text-sm text-muted-color">
+                                Jeu de validation · {{ i.critere_choix ?? 'classement par score global' }} · le modèle en orange est celui utilisé par l'application
+                            </span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[56rem] border-collapse text-sm">
+                                <thead>
+                                    <tr class="border-b border-surface-200 text-left text-xs uppercase tracking-wide text-muted-color dark:border-surface-700">
+                                        <th class="py-2 pr-3">Rang</th>
+                                        <th class="py-2 pr-3">Modèle</th>
+                                        <th class="py-2 pr-3 text-right">Score global</th>
+                                        <th class="py-2 pr-3 text-right">F1 macro</th>
+                                        <th class="py-2 pr-3 text-right">Sensibilité</th>
+                                        <th class="py-2 pr-3 text-right">Spécificité</th>
+                                        <th class="py-2 pr-3 text-right">AUROC</th>
+                                        <th class="py-2 pr-3 text-right">Écart train-val</th>
+                                        <th class="py-2 pr-3 text-right">Époques</th>
+                                        <th class="py-2 pr-3 text-right">Paramètres</th>
+                                        <th class="py-2 text-right">Durée</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (l of comparaison(); track l.modele; let rang = $index) {
+                                        <tr class="border-b border-surface-100 dark:border-surface-800"
+                                            [class.bg-primary/10]="l.modele === i.architecture"
+                                            [class.font-semibold]="l.modele === i.architecture">
+                                            <td class="py-2 pr-3 tabular-nums">{{ rang + 1 }}</td>
+                                            <td class="py-2 pr-3">
+                                                {{ nomModele(l.modele) }}
+                                                @if (l.modele === i.architecture) {
+                                                    <i class="pi pi-check-circle ml-1 text-primary"></i>
+                                                }
+                                            </td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.score === null ? '—' : (l.score | number: '1.3-3') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.f1 === null ? '—' : (l.f1 | number: '1.3-3') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.sensibilite === null ? '—' : (l.sensibilite | number: '1.3-3') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.specificite === null ? '—' : (l.specificite | number: '1.3-3') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.auroc === null ? '—' : (l.auroc | number: '1.3-3') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums" [class.text-red-500]="(l.ecart ?? 0) > 0.3">{{ l.ecart === null ? '—' : (l.ecart | number: '1.2-2') }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.epoques ?? '—' }}</td>
+                                            <td class="py-2 pr-3 text-right tabular-nums">{{ l.params_m === null ? '—' : (l.params_m | number: '1.1-1') + ' M' }}</td>
+                                            <td class="py-2 text-right tabular-nums">{{ l.duree_min === null ? '—' : (l.duree_min | number: '1.1-1') + ' min' }}</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="!m-0 text-xs text-muted-color">
+                            Le CNN fait maison part de zéro ; les autres sont pré-entraînés sur ImageNet (transfer learning). Un écart train-validation supérieur à 0,30 (en rouge) signale du sur-apprentissage.
+                        </p>
+                    </div>
+                }
+            }
+            @if (!comparaison().length) {
+                <div class="card !mb-0 flex flex-col items-center gap-2 py-12 text-center text-muted-color">
+            <i class="pi pi-table text-3xl"></i>
+            <span class="font-medium">Comparaison pas encore disponible</span>
+            <span class="text-sm">Relancez la section 12 du notebook puis copiez classes.json dans ml-api/artefacts/.</span>
+        </div>
+            }
+        }
+        @case ('graphiques') {
+            <!-- Page 5 : graphiques du notebook -->
+        <!-- Graphiques du notebook -->
+        @if (graphiques().length) {
             <div class="card !mb-0 flex flex-col gap-4">
                 <div>
-                    <h2 class="!m-0 !text-lg !font-semibold">Comparaison des {{ comparaison().length }} CNN</h2>
-                    <span class="text-sm text-muted-color">
-                        Jeu de validation · {{ i.critere_choix ?? 'classement par score global' }} · le modèle en orange est celui utilisé par l'application
-                    </span>
+                    <h2 class="!m-0 !text-lg !font-semibold">Graphiques du notebook</h2>
+                    <span class="text-sm text-muted-color">Résultats de l'entraînement, exportés depuis le notebook 1 · cliquez pour agrandir</span>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full min-w-[56rem] border-collapse text-sm">
-                        <thead>
-                            <tr class="border-b border-surface-200 text-left text-xs uppercase tracking-wide text-muted-color dark:border-surface-700">
-                                <th class="py-2 pr-3">Rang</th>
-                                <th class="py-2 pr-3">Modèle</th>
-                                <th class="py-2 pr-3 text-right">Score global</th>
-                                <th class="py-2 pr-3 text-right">F1 macro</th>
-                                <th class="py-2 pr-3 text-right">Sensibilité</th>
-                                <th class="py-2 pr-3 text-right">Spécificité</th>
-                                <th class="py-2 pr-3 text-right">AUROC</th>
-                                <th class="py-2 pr-3 text-right">Écart train-val</th>
-                                <th class="py-2 pr-3 text-right">Époques</th>
-                                <th class="py-2 pr-3 text-right">Paramètres</th>
-                                <th class="py-2 text-right">Durée</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (l of comparaison(); track l.modele; let rang = $index) {
-                                <tr class="border-b border-surface-100 dark:border-surface-800"
-                                    [class.bg-primary/10]="l.modele === i.architecture"
-                                    [class.font-semibold]="l.modele === i.architecture">
-                                    <td class="py-2 pr-3 tabular-nums">{{ rang + 1 }}</td>
-                                    <td class="py-2 pr-3">
-                                        {{ nomModele(l.modele) }}
-                                        @if (l.modele === i.architecture) {
-                                            <i class="pi pi-check-circle ml-1 text-primary"></i>
-                                        }
-                                    </td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.score === null ? '—' : (l.score | number: '1.3-3') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.f1 === null ? '—' : (l.f1 | number: '1.3-3') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.sensibilite === null ? '—' : (l.sensibilite | number: '1.3-3') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.specificite === null ? '—' : (l.specificite | number: '1.3-3') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.auroc === null ? '—' : (l.auroc | number: '1.3-3') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums" [class.text-red-500]="(l.ecart ?? 0) > 0.3">{{ l.ecart === null ? '—' : (l.ecart | number: '1.2-2') }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.epoques ?? '—' }}</td>
-                                    <td class="py-2 pr-3 text-right tabular-nums">{{ l.params_m === null ? '—' : (l.params_m | number: '1.1-1') + ' M' }}</td>
-                                    <td class="py-2 text-right tabular-nums">{{ l.duree_min === null ? '—' : (l.duree_min | number: '1.1-1') + ' min' }}</td>
-                                </tr>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    @for (g of graphiques(); track g.fichier) {
+                        <button type="button" class="flex flex-col gap-2 rounded-xl border border-surface-200 p-3 text-left transition hover:border-primary dark:border-surface-700" (click)="graphiqueOuvert.set(g)">
+                            <img [src]="url(g.url)" [alt]="g.titre" class="w-full rounded-lg bg-white object-contain" loading="lazy" />
+                            <span class="font-medium">{{ g.titre }}</span>
+                            @if (g.description) {
+                                <span class="text-xs text-muted-color">{{ g.description }}</span>
                             }
-                        </tbody>
-                    </table>
+                        </button>
+                    }
                 </div>
-                <p class="!m-0 text-xs text-muted-color">
-                    Le CNN fait maison part de zéro ; les autres sont pré-entraînés sur ImageNet (transfer learning). Un écart train-validation supérieur à 0,30 (en rouge) signale du sur-apprentissage.
-                </p>
+            </div>
+        }
+            @if (!graphiques().length) {
+                <div class="card !mb-0 flex flex-col items-center gap-2 py-12 text-center text-muted-color">
+            <i class="pi pi-images text-3xl"></i>
+            <span class="font-medium">Aucun graphique pour l'instant</span>
+            <span class="text-sm">Lancez la cellule 12-b du notebook puis copiez le dossier graphiques/ dans ml-api/artefacts/.</span>
+        </div>
+            }
+        }
+        @default {
+            <!-- Page 1 : prédiction -->
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+                <!-- Zone d'envoi de l'image -->
+                <div class="card !mb-0 flex flex-col gap-4">
+                    <h2 class="!m-0 !text-lg !font-semibold">1. Choisir une image</h2>
+
+                    <label
+                        class="flex min-h-72 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-4 text-center transition-colors"
+                        [class.border-primary]="glisser()"
+                        [class.bg-primary/5]="glisser()"
+                        [class.border-surface-300]="!glisser()"
+                        (dragover)="survoler($event, true)"
+                        (dragleave)="survoler($event, false)"
+                        (drop)="deposer($event)">
+                        <input type="file" accept="image/*" class="hidden" (change)="choisirFichier($event)" />
+                        @if (apercu()) {
+                            <img [src]="apercu()" alt="Image envoyée" class="max-h-80 rounded-xl object-contain" />
+                            <span class="text-xs text-muted-color">{{ fichier()?.name }} · cliquez pour changer d'image</span>
+                        } @else {
+                            <i class="pi pi-cloud-upload text-4xl text-primary"></i>
+                            <span class="font-medium">Glissez une image ici, ou cliquez pour la choisir</span>
+                            <span class="text-xs text-muted-color">JPG ou PNG · photo d'une lésion de la peau</span>
+                        }
+                    </label>
+
+                    @if (fichier()) {
+                        <div class="flex gap-2">
+                            <button pButton type="button" icon="pi pi-refresh" label="Relancer la prédiction" [disabled]="chargement()" (click)="predire()"></button>
+                            <button pButton type="button" icon="pi pi-times" label="Effacer" severity="secondary" [outlined]="true" (click)="reinitialiser()"></button>
+                        </div>
+                    }
+
+                    @if (exemples().length) {
+                        <div class="flex flex-col gap-2">
+                            <span class="text-sm font-medium">Pas d'image sous la main ? Essayez un exemple du jeu de test :</span>
+                            <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                                @for (ex of exemples(); track ex.fichier) {
+                                    <button type="button" class="group flex flex-col gap-1 rounded-xl border border-surface-200 p-1.5 text-left transition hover:border-primary dark:border-surface-700"
+                                            [disabled]="chargement()" (click)="essayerExemple(ex)" [title]="ex.classe">
+                                        <img [src]="url(ex.url)" [alt]="ex.classe" class="aspect-square w-full rounded-lg object-cover" loading="lazy" />
+                                        <span class="truncate text-[11px] text-muted-color group-hover:text-primary">{{ ex.classe }}</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Résultat -->
+                <div class="card !mb-0 flex flex-col gap-4">
+                    <h2 class="!m-0 !text-lg !font-semibold">2. Résultat</h2>
+
+                    @if (chargement()) {
+                        <p-skeleton height="5rem" borderRadius="16px" />
+                        @for (n of [1, 2, 3, 4, 5]; track n) {
+                            <p-skeleton height="1.5rem" />
+                        }
+                    } @else if (erreur()) {
+                        <p-message severity="error" [text]="erreur()!" />
+                    } @else if (resultat(); as r) {
+                        @if (r.gradcam) {
+                            <div class="flex flex-col gap-2">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <span class="text-sm font-medium">Où le CNN a-t-il regardé ?</span>
+                                    <p-selectbutton [options]="optionsVue" [ngModel]="vue()" (ngModelChange)="vue.set($event)" optionLabel="label" optionValue="value" [allowEmpty]="false" size="small" />
+                                </div>
+                                <img [src]="vue() === 'gradcam' ? r.gradcam : apercu()" alt="Carte Grad-CAM" class="mx-auto aspect-square w-full max-w-80 rounded-xl object-cover" />
+                                @if (vue() === 'gradcam') {
+                                    <div class="flex items-center gap-2 text-xs text-muted-color">
+                                        <span>Peu important</span>
+                                        <span class="h-2 flex-1 rounded-full" style="background: linear-gradient(90deg, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)"></span>
+                                        <span>Très important</span>
+                                    </div>
+                                    <span class="text-xs text-muted-color">Grad-CAM : les zones rouges sont celles qui ont le plus compté dans la décision du modèle.</span>
+                                }
+                            </div>
+                        }
+
+                        <div class="flex items-center justify-between gap-4 rounded-2xl bg-primary/10 p-5">
+                            <div>
+                                <span class="text-sm text-muted-color">Maladie prédite</span>
+                                <div class="text-2xl font-semibold">{{ r.prediction.classe }}</div>
+                            </div>
+                            <p-tag [value]="'Confiance ' + (r.prediction.probabilite | percent: '1.0-1')" [severity]="severite(r.prediction.probabilite)" />
+                        </div>
+
+                        <div class="flex flex-col gap-3">
+                            <span class="text-sm font-medium">Probabilité de chaque maladie (les 3 premières sont mises en avant)</span>
+                            @for (p of r.probabilites; track p.classe; let rang = $index) {
+                                <div class="flex flex-col gap-1" [class.opacity-50]="rang >= 3">
+                                    <div class="flex justify-between text-sm">
+                                        <span [class.font-semibold]="p.classe === r.prediction.classe">
+                                            @if (rang < 3) {
+                                                <span class="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">{{ rang + 1 }}</span>
+                                            }
+                                            {{ p.nom_court }}
+                                        </span>
+                                        <span class="tabular-nums">{{ p.probabilite * 100 | number: '1.1-1' }} %</span>
+                                    </div>
+                                    <p-progressbar [value]="p.probabilite * 100" [showValue]="false" [style]="{ height: '0.6rem' }" />
+                                </div>
+                            }
+                        </div>
+
+                        @if (r.avis) {
+                            <p-message [severity]="messageAvis(r).severite" [text]="messageAvis(r).texte" />
+                        } @else if (r.prediction.probabilite < 0.5) {
+                            <p-message severity="warn" text="Confiance faible : le modèle hésite entre plusieurs maladies." />
+                        }
+                    } @else {
+                        <div class="flex flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-muted-color">
+                            <i class="pi pi-search text-3xl"></i>
+                            <span>Choisissez une image pour obtenir une prédiction.</span>
+                        </div>
+                    }
+
+                    <p class="!m-0 text-xs text-muted-color">
+                        Outil pédagogique réalisé dans le cadre d'un projet de Deep Learning : ce n'est pas un diagnostic médical.
+                    </p>
+                </div>
             </div>
         }
     }
 
-    <!-- Graphiques du notebook -->
-    @if (graphiques().length) {
-        <div class="card !mb-0 flex flex-col gap-4">
-            <div>
-                <h2 class="!m-0 !text-lg !font-semibold">Graphiques du notebook</h2>
-                <span class="text-sm text-muted-color">Résultats de l'entraînement, exportés depuis le notebook 1 · cliquez pour agrandir</span>
-            </div>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                @for (g of graphiques(); track g.fichier) {
-                    <button type="button" class="flex flex-col gap-2 rounded-xl border border-surface-200 p-3 text-left transition hover:border-primary dark:border-surface-700" (click)="graphiqueOuvert.set(g)">
-                        <img [src]="url(g.url)" [alt]="g.titre" class="w-full rounded-lg bg-white object-contain" loading="lazy" />
-                        <span class="font-medium">{{ g.titre }}</span>
-                        @if (g.description) {
-                            <span class="text-xs text-muted-color">{{ g.description }}</span>
-                        }
-                    </button>
-                }
-            </div>
-        </div>
-    }
+    <!-- Boutons Précédent / Suivant -->
+    <app-navigation-pages [pages]="pages" [active]="section()" [base]="routes.Classification_PATH" position="bas" />
 
     <p-dialog [visible]="graphiqueOuvert() !== null" (visibleChange)="!$event && graphiqueOuvert.set(null)" [modal]="true" [dismissableMask]="true"
               [header]="graphiqueOuvert()?.titre ?? ''" [style]="{ width: '90vw', maxWidth: '72rem' }">
