@@ -121,13 +121,21 @@ def info_classification():
     """Informations sur le modèle retenu : architecture, classes et scores."""
     infos = charger_classifieur()["infos"]
     return {
-        "architecture": infos["arch"],
-        "classes": infos["classes"],
-        "noms_courts": infos.get("noms_courts", infos["classes"]),
-        "taille_image": infos.get("img_size", 224),
-        "f1_validation": infos.get("val_f1_macro"),
+        "architecture": infos["arch"],                                 # modèle retenu dans le notebook 1
+        "classes": infos["classes"],                                   # noms complets des 5 maladies
+        "noms_courts": infos.get("noms_courts", infos["classes"]),     # noms courts (affichage)
+        "taille_image": infos.get("img_size", 224),                    # taille d'entrée du CNN
+        "f1_validation": infos.get("val_f1_macro"),                    # anciens champs (toujours fournis)
         "accuracy_test": infos.get("test_accuracy"),
         "f1_test": infos.get("test_f1_macro"),
+        "critere_choix": infos.get("critere_choix"),                   # comment le modèle a été choisi
+        "score_validation": infos.get("score_validation"),             # score global sur la validation
+        "score_test": infos.get("score_test"),                         # score global sur le test
+        "metriques_test": infos.get("metriques_test", {}),             # les 7 critères sur le test
+        "ic_test": infos.get("ic_test", {}),                           # intervalles de confiance à 95 %
+        "rappel_par_classe_test": infos.get("rappel_par_classe_test", {}),   # sensibilité de chaque maladie
+        "nb_images_test": infos.get("nb_images_test"),                 # taille du jeu de test
+        "comparaison": infos.get("comparaison", []),                   # tableau des 9 CNN (section 10-b)
     }
 
 

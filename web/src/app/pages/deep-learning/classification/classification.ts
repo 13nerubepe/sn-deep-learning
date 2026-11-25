@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, PercentPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ButtonDirective } from 'primeng/button';
@@ -7,7 +7,7 @@ import { ProgressBar } from 'primeng/progressbar';
 import { Skeleton } from 'primeng/skeleton';
 import { Tag } from 'primeng/tag';
 
-import { InfoClassification, ResultatClassification } from '@/app/models/deep-learning-model';
+import { InfoClassification, LigneComparaison, ResultatClassification } from '@/app/models/deep-learning-model';
 import { DeepLearningService } from '@/app/pages/service/service/deep-learning-service';
 
 // Module 1 du projet Deep Learning : prédire la maladie de peau présente sur une image.
@@ -22,6 +22,29 @@ export class ClassificationComponent implements OnInit, OnDestroy {
 
     info = signal<InfoClassification | null>(null);           // modèle utilisé
     erreurInfo = signal<string | null>(null);
+
+    // Les 7 critères du notebook (section 9-b), avec une explication simple
+    readonly criteres = [
+        { cle: 'Accuracy', titre: 'Accuracy', aide: 'Part des images bien classées' },
+        { cle: 'Sensibilité macro', titre: 'Sensibilité', aide: 'Retrouve les malades de chaque classe' },
+        { cle: 'Spécificité macro', titre: 'Spécificité', aide: 'Évite les fausses alertes' },
+        { cle: 'Sensib. pire classe', titre: 'Pire classe', aide: 'Sensibilité de la maladie la moins bien reconnue' },
+        { cle: 'F1 macro', titre: 'F1 macro', aide: 'Équilibre précision / rappel, chaque maladie compte autant' },
+        { cle: 'MCC', titre: 'MCC', aide: 'Corrélation de Matthews, robuste au déséquilibre (de -1 à 1)' },
+        { cle: 'AUROC macro', titre: 'AUROC', aide: 'Qualité des probabilités (0,5 = hasard, 1 = parfait)' }
+    ];
+
+    // Critères disponibles sur le test (rien si classes.json est une ancienne version)
+    metriquesTest = computed(() => {
+        const m = this.info()?.metriques_test ?? {};
+        return this.criteres.filter((c) => m[c.cle] !== undefined && m[c.cle] !== null).map((c) => ({ ...c, valeur: m[c.cle] as number }));
+    });
+
+    // Sensibilité de chaque maladie sur le test
+    rappels = computed(() => Object.entries(this.info()?.rappel_par_classe_test ?? {}).map(([classe, valeur]) => ({ classe, valeur })));
+
+    // Tableau de comparaison des CNN, du meilleur au moins bon
+    comparaison = computed<LigneComparaison[]>(() => [...(this.info()?.comparaison ?? [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)));
 
     fichier = signal<File | null>(null);                       // image choisie
     apercu = signal<string | null>(null);                      // adresse locale de l'image, pour l'afficher
@@ -107,6 +130,30 @@ export class ClassificationComponent implements OnInit, OnDestroy {
         if (probabilite >= 0.7) return 'success';
         if (probabilite >= 0.4) return 'warn';
         return 'danger';
+    }
+
+    // Couleur d'une valeur de critère (entre 0 et 1)
+    couleurCritere(valeur: number | null | undefined): string {
+        if (valeur === null || valeur === undefined) return 'text-muted-color';
+        if (valeur >= 0.75) return 'text-green-600 dark:text-green-400';
+        if (valeur >= 0.5) return 'text-orange-500';
+        return 'text-red-500';
+    }
+
+    // Nom lisible d'une architecture (ex. densenet121 -> DenseNet-121)
+    nomModele(nom: string): string {
+        const noms: Record<string, string> = {
+            simple_cnn: 'CNN fait maison',
+            mobilenet_v3_small: 'MobileNet-V3 Small',
+            mobilenet_v3_large: 'MobileNet-V3 Large',
+            shufflenet_v2: 'ShuffleNet-V2',
+            regnet_y_400mf: 'RegNet-Y 400MF',
+            efficientnet_b0: 'EfficientNet-B0',
+            resnet18: 'ResNet-18',
+            resnet50: 'ResNet-50',
+            densenet121: 'DenseNet-121'
+        };
+        return noms[nom] ?? nom;
     }
 
     private libererApercu(): void {
