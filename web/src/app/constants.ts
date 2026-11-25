@@ -6,6 +6,8 @@ export const AppConstantRoute = {
     Volatile_PATH: 'volatile',
     Detail_Actif_PATH: 'detail-actif',
     Portefeuilles_PATH: 'portefeuilles',
+    Classification_PATH: 'classification-images',
+    Prevision_PATH: 'prevision-merck',
 
 }
 

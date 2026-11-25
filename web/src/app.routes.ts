@@ -51,6 +51,20 @@ export const appRoutes: Routes = [
                 data: { breadcrumb: 'Actualité' },
             },
 
+            // Projet Deep Learning (M2 DS)
+            {
+                path: AppConstantRoute.Classification_PATH,
+                title: "Classification d'images",
+                loadComponent: () => import('./app/pages/deep-learning/classification/classification').then((c) => c.ClassificationComponent),
+                data: { breadcrumb: 'Classification' },
+            },
+            {
+                path: AppConstantRoute.Prevision_PATH,
+                title: 'Prévision Merck',
+                loadComponent: () => import('./app/pages/deep-learning/prevision/prevision').then((c) => c.PrevisionComponent),
+                data: { breadcrumb: 'Prévision' },
+            },
+
             { path: 'uikit', loadChildren: () => import('./app/pages/uikit/uikit.routes') },
             { path: 'documentation', component: Documentation },
             { path: 'pages', loadChildren: () => import('./app/pages/pages.routes') }

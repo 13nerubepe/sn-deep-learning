@@ -33,6 +33,13 @@ export class AppMenu {
                     { label: 'Actualités', icon: 'pi pi-fw pi-globe', routerLink: ['/actualités'] },
                 ]
             },
+            {
+                label: 'Projet Deep Learning',
+                items: [
+                    { label: "Classification d'images", icon: 'pi pi-fw pi-image', routerLink: ['/classification-images'] },
+                    { label: 'Prévision Merck (20 j)', icon: 'pi pi-fw pi-chart-line', routerLink: ['/prevision-merck'] },
+                ]
+            },
 
             // // DANS LE TOLBAR
             // {
