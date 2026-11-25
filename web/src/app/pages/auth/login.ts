@@ -7,7 +7,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
 import { RippleModule } from 'primeng/ripple';
 import { AppFloatingConfigurator } from '../../layout/component/app.floatingconfigurator';
-import { ActifService } from '@/app/pages/service/service/actif-service';
 import { apiErrorMessage } from '@/app/models/api-errors';
 import { AuthService } from '@/app/pages/service/service/auth.service';
 import { LoginPayload } from '@/app/models/auth.models';

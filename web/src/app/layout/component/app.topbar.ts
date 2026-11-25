@@ -7,12 +7,11 @@ import { AppConfigurator } from './app.configurator';
 import { LayoutService } from '@/app/pages/service/service/layout.service';
 import { Menu } from 'primeng/menu';
 import { AuthService } from '@/app/pages/service/service/auth.service';
-import { Notifications } from '@/app/pages/commons/notifications/notifications';
 
 @Component({
     selector: 'app-topbar',
     standalone: true,
-    imports: [RouterModule, CommonModule, StyleClassModule, AppConfigurator, Notifications, Menu],
+    imports: [RouterModule, CommonModule, StyleClassModule, AppConfigurator, Menu],
     template: ` <div class="layout-topbar">
         <div class="layout-topbar-logo-container">
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
@@ -52,7 +51,6 @@ import { Notifications } from '@/app/pages/commons/notifications/notifications';
 
         <div class="layout-topbar-actions">
             <div class="layout-config-menu">
-                <app-notifications />
                 <button type="button" class="layout-topbar-action" (click)="toggleDarkMode()">
                     <i [ngClass]="{ 'pi': true, 'pi-moon': layoutService.isDarkTheme(), 'pi-sun': !layoutService.isDarkTheme() }"></i>
                 </button>
@@ -140,8 +138,6 @@ export class AppTopbar {
     userItems: MenuItem[] = [
         { label: 'Mon profil', icon: 'pi pi-user', command: () => this.router.navigate(['/profil']) },
         // { label: 'Paramètres', icon: 'pi pi-cog', command: () => this.router.navigate(['/parametres']) },
-        { label: 'Aide', icon: 'pi pi-question-circle', command: () => this.router.navigate(['/aide']) },
-        // { label: 'Actualités', icon: 'pi pi-fw pi-home', routerLink: ['/actualités'] },
         { separator: true },
         // { label: 'Se déconnecter', icon: 'pi pi-sign-out', styleClass: 'text-red-500', command: () => this.authService.logout() }
         { label: 'Se déconnecter', icon: 'pi pi-sign-out', styleClass: 'text-red-500', command: () => this.seDeconnecter() }
